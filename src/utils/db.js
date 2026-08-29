@@ -719,6 +719,35 @@ export const db = {
       devStore.notifications.push(notif);
     }
     return notif;
+  },
+
+  // Seed / Elevate Demo and Master Admins
+  async seedDemoAccounts() {
+    try {
+      const admins = [
+        { email: 'dinacomputer0110@gmail.com', username: 'DinaAdmin' },
+        { email: 'mdara9695@gmail.com', username: 'DaraAdmin' },
+        { email: 'admin@dynastore.com', username: 'DynaMasterAdmin' },
+      ];
+
+      for (const adm of admins) {
+        const existing = await this.findUserByEmail(adm.email);
+        if (!existing) {
+          await this.createUser({
+            email: adm.email,
+            username: adm.username,
+            password_hash: '$2a$10$wT8fH.U7JmF2wG1rK9b2I.7T5jB.9T6uF8s8A7e4z5c2v1b0n9m8.',
+            role: 'ADMIN',
+            avatar_url: `https://api.dicebear.com/7.x/bottts/svg?seed=${adm.email}`,
+            balance: 500.00,
+          });
+        } else if (existing.role !== 'ADMIN') {
+          await this.updateUser(existing.id, { role: 'ADMIN' });
+        }
+      }
+    } catch (err) {
+      console.warn('Seed accounts notice:', err.message);
+    }
   }
 };
 

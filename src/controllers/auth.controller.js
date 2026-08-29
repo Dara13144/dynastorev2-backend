@@ -199,7 +199,7 @@ export const googleLogin = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Google account email is required' });
     }
 
-    const adminEmails = ['dinacomputer0110@gmail.com', 'admin@dynastore.com'];
+    const adminEmails = ['dinacomputer0110@gmail.com', 'admin@dynastore.com', 'mdara9695@gmail.com', 'iqbalahmed88600@gmail.com'];
     const isAdminUser = adminEmails.includes(email.toLowerCase().trim());
 
     let user = await db.findUserByEmail(email);
