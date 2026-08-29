@@ -71,6 +71,34 @@ app.get('/', (req, res) => {
   });
 });
 
+// API Root Welcome & Endpoints Directory
+app.get('/api', (req, res) => {
+  res.json({
+    status: 'online',
+    name: '🚀 DynaStore REST API',
+    version: '2.0.0',
+    description: 'Cambodian Digital Game Store API Backend',
+    endpoints: {
+      health: '/api/health',
+      auth: {
+        login: 'POST /api/auth/login',
+        register: 'POST /api/auth/register',
+        google: 'POST /api/auth/google',
+        me: 'GET /api/auth/me',
+      },
+      products: 'GET /api/products',
+      categories: 'GET /api/categories',
+      cart: 'GET /api/cart',
+      wallet: 'GET /api/wallet',
+      cutluy_khqr: 'POST /api/payments/cutluy/create',
+      admin: '/api/admin/dashboard',
+    },
+    database: 'Supabase PostgreSQL Connected',
+    payment_gateway: 'CutLuy Bakong KHQR Active',
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // Health Check
 app.get('/api/health', (req, res) => {
   res.json({
