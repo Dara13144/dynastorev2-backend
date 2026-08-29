@@ -166,6 +166,11 @@ server.on('error', (err) => {
         console.warn('Initial seed info:', e.message);
       });
     });
+  } else {
+    console.error('Server error:', err);
+  }
+});
+
 // Keep-Alive Event Loop Anchor (Guarantees process stays alive on Render)
 setInterval(() => {}, 1000 * 60 * 60);
 
