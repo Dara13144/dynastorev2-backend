@@ -107,8 +107,10 @@ app.use('/api/*', (req, res) => {
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
-const server = app.listen(PORT, '127.0.0.1', async () => {
-  console.log(`🚀 DynaStore API Server is running on http://127.0.0.1:${PORT}`);
+const HOST = '0.0.0.0';
+
+const server = app.listen(PORT, HOST, async () => {
+  console.log(`🚀 DynaStore API Server is running on port ${PORT} (0.0.0.0:${PORT})`);
   console.log(`💳 ABA PayWay configured for: [${ENV.ABA_PAYWAY.ENVIRONMENT.toUpperCase()}]`);
   console.log(`🌐 Frontend Allowed: ${ENV.FRONTEND_URL}`);
   await db.seedDemoAccounts();
@@ -118,8 +120,8 @@ server.on('error', (err) => {
   if (err.code === 'EACCES' || err.code === 'EADDRINUSE') {
     const fallbackPort = 5001;
     console.warn(`⚠️ Port ${PORT} unavailable (${err.code}). Falling back to port ${fallbackPort}...`);
-    app.listen(fallbackPort, '127.0.0.1', async () => {
-      console.log(`🚀 DynaStore API Server is running on http://127.0.0.1:${fallbackPort}`);
+    app.listen(fallbackPort, HOST, async () => {
+      console.log(`🚀 DynaStore API Server is running on port ${fallbackPort} (0.0.0.0:${fallbackPort})`);
       await db.seedDemoAccounts();
     });
   } else {
