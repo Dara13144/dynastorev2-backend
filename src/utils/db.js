@@ -311,29 +311,42 @@ export const db = {
   async createUser(userData) {
     if (isConfigured && supabase) {
       let uid = userData.id;
-      try {
-        const { data: authUser } = await supabase.auth.admin.createUser({
-          email: userData.email.toLowerCase(),
-          password: userData.password || 'Admin@123',
-          email_confirm: true,
-          user_metadata: {
-            username: userData.username,
-            avatar_url: userData.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${userData.username}`,
-            role: userData.role || 'USER',
+      if (!uid) {
+        try {
+          const { data: authUser, error: authErr } = await supabase.auth.admin.createUser({
+            email: userData.email.toLowerCase(),
+            password: 'User@' + Math.random().toString(36).slice(-8) + 'Aa1!',
+            email_confirm: true,
+            user_metadata: {
+              username: userData.username,
+              avatar_url: userData.avatar_url,
+            }
+          });
+          if (authUser?.user?.id) {
+            uid = authUser.user.id;
           }
-        });
-        if (authUser?.user?.id) {
-          uid = authUser.user.id;
+        } catch (e) {
+          // ignore
         }
-      } catch (err) {
-        // Fallback or ignore if already created
+      }
+
+      if (!uid) {
+        try {
+          const { data: listData } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+          const match = listData?.users?.find(u => u.email?.toLowerCase() === userData.email.toLowerCase());
+          if (match) {
+            uid = match.id;
+          }
+        } catch (e) {
+          // ignore
+        }
       }
 
       if (!uid) {
         uid = crypto.randomUUID();
       }
 
-      const { data, error } = await supabase.from('profiles').upsert({
+      const profilePayload = {
         id: uid,
         email: userData.email.toLowerCase(),
         username: userData.username,
@@ -341,9 +354,16 @@ export const db = {
         role: userData.role || 'USER',
         balance: Number(userData.balance || 0.00),
         is_active: true,
-      }).select().single();
+      };
 
-      if (error && !data) throw error;
+      const { data, error } = await supabase.from('profiles').upsert(profilePayload, { onConflict: 'id' }).select().single();
+      if (error && !data) {
+        console.warn('Profile upsert warning:', error.message);
+        // If foreign key constraint failed, try finding profile
+        const { data: fallbackProfile } = await supabase.from('profiles').select('*').eq('email', userData.email.toLowerCase()).single();
+        if (fallbackProfile) return fallbackProfile;
+        throw error;
+      }
       return data;
     }
 
