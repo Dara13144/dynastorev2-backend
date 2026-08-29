@@ -134,15 +134,19 @@ app.use('/api/*', (req, res) => {
 // Central Error Handler
 app.use(errorHandler);
 
-const port = process.env.PORT || 5001;
+const port = Number(process.env.PORT) || 5001;
+const host = '0.0.0.0';
 
-const server = app.listen(port, () => {
-  console.log(`🚀 DynaStore API Server listening on port ${port}`);
+const server = app.listen(port, host, () => {
+  console.log(`🚀 DynaStore API Server listening on http://${host}:${port}`);
   db.seedDemoAccounts().catch(() => {});
 });
 
 server.on('error', (err) => {
   console.error('Server error:', err.message);
 });
+
+// Process keep-alive anchor
+setInterval(() => {}, 1000 * 60 * 60);
 
 export default app;
