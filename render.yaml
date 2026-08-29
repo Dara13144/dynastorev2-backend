@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: dynastorev2-backend
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node src/server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
