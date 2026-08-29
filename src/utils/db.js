@@ -536,6 +536,26 @@ export const db = {
     return devStore.categories;
   },
 
+  async hasUserPurchasedProduct(userId, productId) {
+    try {
+      if (isConfigured && supabase) {
+        const { data } = await supabase
+          .from('order_items')
+          .select('id, order:orders!inner(user_id, status)')
+          .eq('product_id', productId)
+          .eq('orders.user_id', userId)
+          .eq('orders.status', 'PAID')
+          .limit(1);
+        return Boolean(data && data.length > 0);
+      }
+      const userOrders = devStore.orders.filter(o => o.user_id === userId && o.status === 'PAID');
+      const userOrderIds = userOrders.map(o => o.id);
+      return devStore.order_items.some(item => userOrderIds.includes(item.order_id) && item.product_id === productId);
+    } catch (e) {
+      return false;
+    }
+  },
+
   // Orders
   async createOrder({ userId, totalAmount, paymentMethod, transactionId, items }) {
     const orderId = crypto.randomUUID();

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import axios from 'axios';
+import { db } from '../utils/db.js';
 
 const BASE_URL = 'http://127.0.0.1:5001/api';
 
@@ -157,9 +158,23 @@ test('E2E - Purchase Flow, Order Completion & Secure Signed Download', async () 
   });
   const token = regRes.data.token;
 
+  // Get active product dynamically
+  const prodsRes = await axios.get(`${BASE_URL}/products`);
+  let testProduct = prodsRes.data?.products?.[0];
+  if (!testProduct) {
+    testProduct = await db.createProduct({
+      title: 'CyberPulse 2077 Test',
+      slug: `cyberpulse-test-${Date.now()}`,
+      price: 19.99,
+      is_published: true,
+      file_path: 'games/cyberpulse.zip',
+    });
+  }
+  const productId = testProduct.id;
+
   // Unpurchased product download test -> MUST return 403
   try {
-    await axios.get(`${BASE_URL}/downloads/11111111-1111-1111-1111-111111111111`, {
+    await axios.get(`${BASE_URL}/downloads/${productId}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     assert.fail('Should have thrown 403 for unpurchased product');
@@ -178,12 +193,13 @@ test('E2E - Purchase Flow, Order Completion & Secure Signed Download', async () 
     status: '00',
     amount: '50.00',
   });
+  await new Promise((r) => setTimeout(r, 300));
 
   // Complete purchase using Wallet Balance
   const orderRes = await axios.post(
     `${BASE_URL}/orders`,
     {
-      productIds: ['11111111-1111-1111-1111-111111111111'],
+      productIds: [productId],
       paymentMethod: 'WALLET_BALANCE',
     },
     { headers: { Authorization: `Bearer ${token}` } }
@@ -192,7 +208,7 @@ test('E2E - Purchase Flow, Order Completion & Secure Signed Download', async () 
   assert.equal(orderRes.data.status, 'PAID');
 
   // Now test secure download -> MUST succeed
-  const dlRes = await axios.get(`${BASE_URL}/downloads/11111111-1111-1111-1111-111111111111`, {
+  const dlRes = await axios.get(`${BASE_URL}/downloads/${productId}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   assert.equal(dlRes.status, 200);
