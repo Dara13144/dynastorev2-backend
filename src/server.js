@@ -134,23 +134,38 @@ app.use('/api/*', (req, res) => {
 // Central Error Handler
 app.use(errorHandler);
 
-const PORT = process.env.PORT || 5000;
+// Global Process Crash Handlers (Prevents early exits on Cloud Providers)
+process.on('uncaughtException', (err) => {
+  console.error('⚠️ Uncaught Exception:', err.message || err);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('⚠️ Unhandled Rejection:', reason?.message || reason);
+});
+
+const PORT = Number(process.env.PORT) || 5000;
 const HOST = '0.0.0.0';
 
-const server = app.listen(PORT, HOST, async () => {
+const server = app.listen(PORT, HOST, () => {
   console.log(`🚀 DynaStore API Server is running on port ${PORT} (0.0.0.0:${PORT})`);
   console.log(`💳 ABA PayWay configured for: [${ENV.ABA_PAYWAY.ENVIRONMENT.toUpperCase()}]`);
   console.log(`🌐 Frontend Allowed: ${ENV.FRONTEND_URL}`);
-  await db.seedDemoAccounts();
+  
+  // Safe background seed
+  db.seedDemoAccounts().catch((e) => {
+    console.warn('Initial seed info:', e.message);
+  });
 });
 
 server.on('error', (err) => {
   if (err.code === 'EACCES' || err.code === 'EADDRINUSE') {
     const fallbackPort = 5001;
     console.warn(`⚠️ Port ${PORT} unavailable (${err.code}). Falling back to port ${fallbackPort}...`);
-    app.listen(fallbackPort, HOST, async () => {
+    app.listen(fallbackPort, HOST, () => {
       console.log(`🚀 DynaStore API Server is running on port ${fallbackPort} (0.0.0.0:${fallbackPort})`);
-      await db.seedDemoAccounts();
+      db.seedDemoAccounts().catch((e) => {
+        console.warn('Initial seed info:', e.message);
+      });
     });
   } else {
     console.error('Server error:', err);
