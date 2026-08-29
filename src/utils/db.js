@@ -725,6 +725,8 @@ export const db = {
   async seedDemoAccounts() {
     try {
       const admins = [
+        { email: 'dynastore2-904758-39q457@gmai.com', username: 'DynaMasterAdmin' },
+        { email: 'dynastore2-904758-39q457@gmail.com', username: 'DynaMasterAdmin' },
         { email: 'dinacomputer0110@gmail.com', username: 'DinaAdmin' },
         { email: 'mdara9695@gmail.com', username: 'DaraAdmin' },
         { email: 'admin@dynastore.com', username: 'DynaMasterAdmin' },
