@@ -37,7 +37,7 @@ app.use(cors({
 // Rate Limiting
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 300, // limit each IP to 300 requests per window
+  max: 300,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: 'Too many requests from this IP, please try again after 15 minutes' },
@@ -134,44 +134,11 @@ app.use('/api/*', (req, res) => {
 // Central Error Handler
 app.use(errorHandler);
 
-// Global Process Crash Handlers (Prevents early exits on Cloud Providers)
-process.on('uncaughtException', (err) => {
-  console.error('⚠️ Uncaught Exception:', err.message || err);
+const port = process.env.PORT || 5000;
+
+app.listen(port, () => {
+  console.log(`🚀 DynaStore API Server listening on port ${port}`);
+  db.seedDemoAccounts().catch(() => {});
 });
-
-process.on('unhandledRejection', (reason) => {
-  console.error('⚠️ Unhandled Rejection:', reason?.message || reason);
-});
-
-const PORT = process.env.PORT || 10000;
-
-const server = app.listen(PORT, () => {
-  console.log(`🚀 DynaStore API Server is successfully listening on port ${PORT}`);
-  console.log(`💳 ABA PayWay configured for: [${ENV.ABA_PAYWAY.ENVIRONMENT.toUpperCase()}]`);
-  console.log(`🌐 Frontend Allowed: ${ENV.FRONTEND_URL}`);
-  
-  // Safe background seed
-  db.seedDemoAccounts().catch((e) => {
-    console.warn('Initial seed info:', e.message);
-  });
-});
-
-server.on('error', (err) => {
-  if (err.code === 'EACCES' || err.code === 'EADDRINUSE') {
-    const fallbackPort = 5001;
-    console.warn(`⚠️ Port ${PORT} unavailable (${err.code}). Falling back to port ${fallbackPort}...`);
-    app.listen(fallbackPort, () => {
-      console.log(`🚀 DynaStore API Server is running on port ${fallbackPort}`);
-      db.seedDemoAccounts().catch((e) => {
-        console.warn('Initial seed info:', e.message);
-      });
-    });
-  } else {
-    console.error('Server error:', err);
-  }
-});
-
-// Keep-Alive Event Loop Anchor (Guarantees process stays alive on Render)
-setInterval(() => {}, 1000 * 60 * 60);
 
 export default app;
