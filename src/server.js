@@ -53,6 +53,24 @@ if (ENV.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
+// Root Welcome & System Status Endpoint
+app.get('/', (req, res) => {
+  res.json({
+    status: 'online',
+    name: '🚀 DynaStore API Server',
+    version: '2.0.0',
+    description: 'Cambodian Digital Game Store API Backend with Bakong KHQR, Supabase, and Google OAuth',
+    documentation: {
+      health: '/api/health',
+      products: '/api/products',
+      categories: '/api/categories',
+    },
+    database: 'Supabase PostgreSQL Connected',
+    payment_gateway: 'CutLuy Bakong KHQR Active',
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // Health Check
 app.get('/api/health', (req, res) => {
   res.json({
