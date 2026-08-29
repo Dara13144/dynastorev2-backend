@@ -143,11 +143,10 @@ process.on('unhandledRejection', (reason) => {
   console.error('⚠️ Unhandled Rejection:', reason?.message || reason);
 });
 
-const PORT = Number(process.env.PORT) || 5000;
-const HOST = '0.0.0.0';
+const PORT = process.env.PORT || 10000;
 
-const server = app.listen(PORT, HOST, () => {
-  console.log(`🚀 DynaStore API Server is running on port ${PORT} (0.0.0.0:${PORT})`);
+const server = app.listen(PORT, () => {
+  console.log(`🚀 DynaStore API Server is successfully listening on port ${PORT}`);
   console.log(`💳 ABA PayWay configured for: [${ENV.ABA_PAYWAY.ENVIRONMENT.toUpperCase()}]`);
   console.log(`🌐 Frontend Allowed: ${ENV.FRONTEND_URL}`);
   
@@ -161,8 +160,8 @@ server.on('error', (err) => {
   if (err.code === 'EACCES' || err.code === 'EADDRINUSE') {
     const fallbackPort = 5001;
     console.warn(`⚠️ Port ${PORT} unavailable (${err.code}). Falling back to port ${fallbackPort}...`);
-    app.listen(fallbackPort, HOST, () => {
-      console.log(`🚀 DynaStore API Server is running on port ${fallbackPort} (0.0.0.0:${fallbackPort})`);
+    app.listen(fallbackPort, () => {
+      console.log(`🚀 DynaStore API Server is running on port ${fallbackPort}`);
       db.seedDemoAccounts().catch((e) => {
         console.warn('Initial seed info:', e.message);
       });
