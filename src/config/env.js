@@ -4,7 +4,7 @@ dotenv.config();
 export const ENV = {
   PORT: process.env.PORT || 10000,
   NODE_ENV: process.env.NODE_ENV || 'production',
-  FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:5173',
+  FRONTEND_URL: process.env.FRONTEND_URL || 'https://dynastorev2-frontend.vercel.app',
 
   // Supabase
   SUPABASE_URL: process.env.SUPABASE_URL || 'https://zuhbtivatfaxxbuilltj.supabase.co',
@@ -13,6 +13,12 @@ export const ENV = {
 
   // JWT
   JWT_SECRET: process.env.JWT_SECRET || 'dynastore_dev_secret_jwt_key_2026_secure_tokens',
+
+  // Google OAuth
+  GOOGLE: {
+    CLIENT_ID: process.env.GOOGLE_CLIENT_ID || '16446964112-ci1cf4v6vc551ppvm003107sgkqg96as.apps.googleusercontent.com',
+    CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || '',
+  },
 
   // ABA PayWay
   ABA_PAYWAY: {

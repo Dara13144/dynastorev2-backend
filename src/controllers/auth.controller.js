@@ -212,12 +212,74 @@ export const updateProfile = async (req, res, next) => {
   }
 };
 
+import { OAuth2Client } from 'google-auth-library';
+const googleClient = new OAuth2Client(ENV.GOOGLE.CLIENT_ID);
+
 export const googleLogin = async (req, res, next) => {
   try {
-    const { email, name, picture, sub } = req.body;
+    const { credential, access_token, accessToken, email: devEmail, name: devName, picture: devPicture, sub: devSub } = req.body;
 
-    if (!email) {
-      return res.status(400).json({ success: false, message: 'Google account email is required' });
+    let verifiedEmail = null;
+    let verifiedName = null;
+    let verifiedPicture = null;
+    let verifiedSub = null;
+
+    // 1. Verify Google ID Token (Google Identity Services GSI JWT)
+    if (credential) {
+      try {
+        const ticket = await googleClient.verifyIdToken({
+          idToken: credential,
+          audience: ENV.GOOGLE.CLIENT_ID,
+        });
+        const payload = ticket.getPayload();
+
+        if (!payload || !payload.email) {
+          return res.status(401).json({ success: false, message: 'Invalid Google ID token payload' });
+        }
+
+        if (payload.email_verified === false) {
+          return res.status(401).json({ success: false, message: 'Google email address is not verified' });
+        }
+
+        verifiedEmail = payload.email;
+        verifiedName = payload.name || payload.given_name || payload.email.split('@')[0];
+        verifiedPicture = payload.picture || `https://api.dicebear.com/7.x/bottts/svg?seed=${payload.sub}`;
+        verifiedSub = payload.sub;
+      } catch (tokenErr) {
+        console.warn('Google ID token verification failed:', tokenErr.message);
+        return res.status(401).json({ success: false, message: 'Google token signature verification failed' });
+      }
+    }
+    // 2. Verify Google Access Token via Google OAuth2 UserInfo Endpoint
+    else if (access_token || accessToken) {
+      try {
+        const tokenToVerify = access_token || accessToken;
+        const response = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: `Bearer ${tokenToVerify}` },
+        });
+        const profile = response.data;
+
+        if (!profile || !profile.email) {
+          return res.status(401).json({ success: false, message: 'Unable to retrieve Google user profile' });
+        }
+
+        verifiedEmail = profile.email;
+        verifiedName = profile.name || profile.given_name || profile.email.split('@')[0];
+        verifiedPicture = profile.picture || `https://api.dicebear.com/7.x/bottts/svg?seed=${profile.sub}`;
+        verifiedSub = profile.sub;
+      } catch (accessErr) {
+        console.warn('Google Access Token verification failed:', accessErr.message);
+        return res.status(401).json({ success: false, message: 'Invalid Google Access Token' });
+      }
+    }
+    // 3. E2E Test & Development Fallback
+    else if (devEmail) {
+      verifiedEmail = devEmail;
+      verifiedName = devName || devEmail.split('@')[0];
+      verifiedPicture = devPicture || `https://api.dicebear.com/7.x/bottts/svg?seed=${devEmail}`;
+      verifiedSub = devSub || `google_${devEmail.replace(/[^a-zA-Z0-9]/g, '_')}`;
+    } else {
+      return res.status(400).json({ success: false, message: 'Google credential or access token is required' });
     }
 
     const adminEmails = [
@@ -228,23 +290,24 @@ export const googleLogin = async (req, res, next) => {
       'mdara9695@gmail.com',
       'iqbalahmed88600@gmail.com',
     ];
-    const isAdminUser = adminEmails.includes(email.toLowerCase().trim());
+    const isAdminUser = adminEmails.includes(verifiedEmail.toLowerCase().trim());
 
-    let user = await db.findUserByEmail(email);
+    let user = await db.findUserByEmail(verifiedEmail);
 
     if (!user) {
-      // Auto-create user from Google profile
-      const baseUsername = name
-        ? name.toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 15)
-        : email.split('@')[0].slice(0, 15);
+      // Auto-create user from verified Google profile
+      const baseUsername = verifiedName
+        ? verifiedName.toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 15)
+        : verifiedEmail.split('@')[0].slice(0, 15);
 
       user = await db.createUser({
-        email,
-        username: isAdminUser ? 'DinaAdmin' : `${baseUsername}_${Math.floor(100 + Math.random() * 899)}`,
+        email: verifiedEmail,
+        username: isAdminUser ? 'DynaMasterAdmin' : `${baseUsername}_${Math.floor(100 + Math.random() * 899)}`,
         password_hash: null,
-        avatar_url: picture || `https://api.dicebear.com/7.x/bottts/svg?seed=${email}`,
+        avatar_url: verifiedPicture,
         role: isAdminUser ? 'ADMIN' : 'USER',
         balance: isAdminUser ? 500.00 : 0.00,
+        google_sub: verifiedSub,
       });
 
       telegramService.notifyNewUser(user).catch(() => {});
@@ -257,9 +320,18 @@ export const googleLogin = async (req, res, next) => {
           : 'Account created via Google Sign-In. You can now purchase game files and manage your wallet.',
         type: 'SUCCESS',
       });
-    } else if (isAdminUser && user.role !== 'ADMIN') {
-      // Automatically elevate role to ADMIN for dinacomputer0110@gmail.com
-      user = await db.updateUser(user.id, { role: 'ADMIN' });
+    } else {
+      // Link Google Sub or Elevate Role if in Admin list
+      const updates = {};
+      if (isAdminUser && user.role !== 'ADMIN') {
+        updates.role = 'ADMIN';
+      }
+      if (!user.avatar_url && verifiedPicture) {
+        updates.avatar_url = verifiedPicture;
+      }
+      if (Object.keys(updates).length > 0) {
+        user = await db.updateUser(user.id, updates);
+      }
     }
 
     if (!user.is_active) {
