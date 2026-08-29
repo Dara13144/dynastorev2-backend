@@ -2,17 +2,17 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 export const ENV = {
-  PORT: process.env.PORT || 5000,
-  NODE_ENV: process.env.NODE_ENV || 'development',
+  PORT: process.env.PORT || 10000,
+  NODE_ENV: process.env.NODE_ENV || 'production',
   FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:5173',
 
   // Supabase
-  SUPABASE_URL: process.env.SUPABASE_URL || '',
-  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
-  SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY || '',
+  SUPABASE_URL: process.env.SUPABASE_URL || 'https://zuhbtivatfaxxbuilltj.supabase.co',
+  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp1aGJ0aXZhdGZheHhidWlsbHRqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Nzk3OTA0OSwiZXhwIjoyMTAzNTU1MDQ5fQ.JK3FeSbQQH95D8BgdGO_vSCk4MJF0FdlsCWevUVv-IE',
+  SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp1aGJ0aXZhdGZheHhidWlsbHRqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc5NzkwNDksImV4cCI6MjEwMzU1NTA0OX0.WcnHZLuWMpZYj5PReyiMgvwSx46DRAlvl99o0SmQtAk',
 
   // JWT
-  JWT_SECRET: process.env.JWT_SECRET || 'dynastore_default_jwt_secret_please_set_in_env',
+  JWT_SECRET: process.env.JWT_SECRET || 'dynastore_dev_secret_jwt_key_2026_secure_tokens',
 
   // ABA PayWay
   ABA_PAYWAY: {
