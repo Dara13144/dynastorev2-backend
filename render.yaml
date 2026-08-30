@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: dynastorev2-backend
+    name: dynastorev2-backend-111
     env: node
     plan: free
     buildCommand: npm install
