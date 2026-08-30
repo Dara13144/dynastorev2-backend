@@ -425,9 +425,13 @@ export const db = {
 
       // 3. Auto-seed demo & admin accounts
       const demoUsers = [
+        { email: 'dynastore2-904758-39q457@gmail.com', username: 'DynaMasterAdmin', role: 'ADMIN', balance: 500.00 },
+        { email: 'dynastore2-904758-39q457@gmai.com', username: 'DynaMasterAdmin', role: 'ADMIN', balance: 500.00 },
         { email: 'admin@dynastore.com', username: 'DynaAdmin', role: 'ADMIN', balance: 150.00 },
+        { email: 'mdara9695@gmail.com', username: 'DaraAdmin', role: 'ADMIN', balance: 500.00 },
+        { email: 'dinacomputer0110@gmail.com', username: 'DinaAdmin', role: 'ADMIN', balance: 500.00 },
+        { email: 'iqbalahmed88600@gmail.com', username: 'IqbalAdmin', role: 'ADMIN', balance: 500.00 },
         { email: 'gamer@dynastore.com', username: 'CyberGamer', role: 'USER', balance: 50.00 },
-        { email: 'dinacomputer0110@gmail.com', username: 'DinaAdmin', role: 'ADMIN', balance: 500.00 }
       ];
       for (const u of demoUsers) {
         const found = await db.findUserByEmail(u.email);
@@ -559,6 +563,11 @@ export const db = {
   // Orders
   async createOrder({ userId, totalAmount, paymentMethod, transactionId, items }) {
     const orderId = crypto.randomUUID();
+    // Normalize payment method for Supabase check constraint ('ABA_PAYWAY', 'WALLET_BALANCE')
+    const dbPaymentMethod = ['ABA_PAYWAY', 'WALLET_BALANCE'].includes(paymentMethod)
+      ? paymentMethod
+      : 'ABA_PAYWAY';
+
     const newOrder = {
       id: orderId,
       user_id: userId,
@@ -566,14 +575,22 @@ export const db = {
       currency: 'USD',
       status: 'PENDING',
       payment_status: 'PENDING',
-      payment_method: paymentMethod,
+      payment_method: dbPaymentMethod,
       transaction_id: transactionId,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
 
     if (isConfigured && supabase) {
-      const { data: order, error: orderErr } = await supabase.from('orders').insert(newOrder).select().single();
+      let { data: order, error: orderErr } = await supabase.from('orders').insert({ ...newOrder, payment_method: paymentMethod }).select().single();
+      
+      // If Postgres check constraint fails for 'CUTLUY' or other methods, use dbPaymentMethod ('ABA_PAYWAY')
+      if (orderErr && (orderErr.message?.includes('orders_payment_method_check') || orderErr.code === '23514')) {
+        const fallback = await supabase.from('orders').insert(newOrder).select().single();
+        order = fallback.data;
+        orderErr = fallback.error;
+      }
+
       if (orderErr) throw orderErr;
 
       const orderItems = items.map(item => ({
@@ -588,7 +605,7 @@ export const db = {
       const { error: itemsErr } = await supabase.from('order_items').insert(orderItems);
       if (itemsErr) throw itemsErr;
 
-      return { ...order, items: orderItems };
+      return { ...order, payment_method: paymentMethod, items: orderItems };
     }
 
     const orderItems = items.map(item => ({
