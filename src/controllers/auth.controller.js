@@ -1,9 +1,17 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import axios from 'axios';
+import { OAuth2Client } from 'google-auth-library';
 import { db } from '../utils/db.js';
 import { ENV } from '../config/env.js';
 import { telegramService } from '../services/telegram.service.js';
+import { emailService } from '../services/email.service.js';
+
+const googleClient = new OAuth2Client(
+  ENV.GOOGLE.CLIENT_ID,
+  ENV.GOOGLE.CLIENT_SECRET,
+  'postmessage'
+);
 
 const generateToken = (user) => {
   return jwt.sign(
@@ -214,20 +222,50 @@ export const updateProfile = async (req, res, next) => {
   }
 };
 
-import { OAuth2Client } from 'google-auth-library';
-const googleClient = new OAuth2Client(ENV.GOOGLE.CLIENT_ID);
-
 export const googleLogin = async (req, res, next) => {
   try {
-    const { credential, access_token, accessToken, email: devEmail, name: devName, picture: devPicture, sub: devSub } = req.body;
+    const { code, credential, access_token, accessToken, email: devEmail, name: devName, picture: devPicture, sub: devSub } = req.body;
 
     let verifiedEmail = null;
     let verifiedName = null;
     let verifiedPicture = null;
     let verifiedSub = null;
 
+    // 0. Authorization Code Exchange
+    if (code) {
+      try {
+        const { tokens } = await googleClient.getToken(code);
+        if (tokens.id_token) {
+          const ticket = await googleClient.verifyIdToken({
+            idToken: tokens.id_token,
+            audience: ENV.GOOGLE.CLIENT_ID,
+          });
+          const payload = ticket.getPayload();
+          if (payload?.email) {
+            verifiedEmail = payload.email;
+            verifiedName = payload.name || payload.given_name || payload.email.split('@')[0];
+            verifiedPicture = payload.picture || `https://api.dicebear.com/7.x/bottts/svg?seed=${payload.sub}`;
+            verifiedSub = payload.sub;
+          }
+        } else if (tokens.access_token) {
+          const response = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
+            headers: { Authorization: `Bearer ${tokens.access_token}` },
+          });
+          const profile = response.data;
+          if (profile?.email) {
+            verifiedEmail = profile.email;
+            verifiedName = profile.name || profile.given_name || profile.email.split('@')[0];
+            verifiedPicture = profile.picture || `https://api.dicebear.com/7.x/bottts/svg?seed=${profile.sub}`;
+            verifiedSub = profile.sub;
+          }
+        }
+      } catch (codeErr) {
+        console.warn('Google Code Exchange notice:', codeErr.message);
+      }
+    }
+
     // 1. Verify Google ID Token (Google Identity Services GSI JWT)
-    if (credential) {
+    if (!verifiedEmail && credential) {
       try {
         const ticket = await googleClient.verifyIdToken({
           idToken: credential,
@@ -317,7 +355,7 @@ export const googleLogin = async (req, res, next) => {
 
       user = await db.createUser({
         email: verifiedEmail,
-        username: isAdminUser ? 'DynaMasterAdmin' : `${baseUsername}_${Math.floor(100 + Math.random() * 899)}`,
+        username: isAdminUser ? 'DynaMasterAdmin' : `${baseUsername}_${Date.now().toString().slice(-4)}${Math.floor(10 + Math.random() * 89)}`,
         password_hash: null,
         avatar_url: verifiedPicture,
         role: isAdminUser ? 'ADMIN' : 'USER',
@@ -377,21 +415,142 @@ export const logout = (req, res) => {
   });
 };
 
-export const forgotPassword = async (req, res) => {
-  const { email } = req.body;
-  res.json({
-    success: true,
-    message: `If an account exists for ${email}, a password reset link has been dispatched.`,
-  });
+export const forgotPassword = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    if (!email || !email.includes('@')) {
+      return res.status(400).json({ success: false, message: 'A valid email address is required' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const user = await db.findUserByEmail(cleanEmail);
+
+    if (!user) {
+      return res.json({
+        success: true,
+        message: `If an account is associated with ${cleanEmail}, recovery instructions have been dispatched.`,
+      });
+    }
+
+    // Generate 6-digit numeric verification code (OTP)
+    const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Generate signed JWT reset token (15 mins expiration)
+    const resetToken = jwt.sign(
+      { email: cleanEmail, type: 'PASSWORD_RESET' },
+      ENV.JWT_SECRET,
+      { expiresIn: '15m' }
+    );
+
+    // Save in DB/cache
+    db.storePasswordReset({
+      email: cleanEmail,
+      code: resetCode,
+      token: resetToken,
+      expiresAt: Date.now() + 15 * 60 * 1000,
+    });
+
+    // Send Real Email via SMTP / Gmail / Supabase
+    await emailService.sendPasswordResetEmail({
+      email: cleanEmail,
+      resetCode,
+      resetToken,
+      username: user.username,
+    });
+
+    // Create In-App Notification
+    await db.createNotification({
+      userId: user.id,
+      title: 'Password Reset Code Requested',
+      message: `A password reset code (${resetCode}) was requested. It expires in 15 minutes.`,
+      type: 'WARNING',
+    });
+
+    res.json({
+      success: true,
+      message: `A 6-digit verification code and reset link have been sent to ${cleanEmail}. Please check your inbox or spam folder.`,
+      email: cleanEmail,
+      resetCode: process.env.NODE_ENV === 'development' ? resetCode : undefined,
+    });
+  } catch (error) {
+    next(error);
+  }
 };
 
-export const resetPassword = async (req, res) => {
-  const { password } = req.body;
-  if (!password || password.length < 6) {
-    return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
+export const resetPassword = async (req, res, next) => {
+  try {
+    const { email, code, token, password, new_password } = req.body;
+    const newPassword = new_password || password;
+
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters long',
+      });
+    }
+
+    let targetEmail = email ? email.trim().toLowerCase() : null;
+
+    // If a JWT reset token is provided, verify it
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, ENV.JWT_SECRET);
+        if (decoded?.email && decoded?.type === 'PASSWORD_RESET') {
+          targetEmail = decoded.email.toLowerCase();
+        }
+      } catch (jwtErr) {
+        // Token expired or invalid, continue to check OTP code
+      }
+    }
+
+    if (!targetEmail) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email or a valid reset token is required',
+      });
+    }
+
+    const isValid = db.verifyPasswordReset({
+      email: targetEmail,
+      code: code ? code.toString().trim() : null,
+      token: token ? token.trim() : null,
+    });
+
+    if (!isValid) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired verification code. Please request a new code.',
+      });
+    }
+
+    const user = await db.findUserByEmail(targetEmail);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const newPasswordHash = await bcrypt.hash(newPassword, salt);
+
+    await db.updateUserPassword({
+      email: targetEmail,
+      newPassword,
+      newPasswordHash,
+    });
+
+    db.consumePasswordReset(targetEmail);
+
+    await db.createNotification({
+      userId: user.id,
+      title: 'Password Changed Successfully',
+      message: 'Your DynaStore account password was recently updated. If this was not you, please contact support immediately.',
+      type: 'SUCCESS',
+    });
+
+    res.json({
+      success: true,
+      message: 'Your password has been reset successfully! You can now log in with your new password.',
+    });
+  } catch (error) {
+    next(error);
   }
-  res.json({
-    success: true,
-    message: 'Password has been reset successfully. You can now login with your new credentials.',
-  });
 };

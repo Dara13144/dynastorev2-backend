@@ -48,6 +48,42 @@ test('E2E - Google OAuth Login & Profile Creation', async () => {
   assert.equal(meRes.data.user.email, googleEmail);
 });
 
+test('E2E - Forgot Password OTP & Recovery Flow', async () => {
+  const resetTargetEmail = 'gamer@dynastore.com';
+
+  // 1. Request password reset code
+  const forgotRes = await axios.post(`${BASE_URL}/auth/forgot-password`, {
+    email: resetTargetEmail,
+  });
+  assert.equal(forgotRes.status, 200);
+  assert.ok(forgotRes.data.success);
+
+  // 2. Perform reset using verification code
+  const resetCode = forgotRes.data.resetCode;
+  assert.ok(resetCode, 'Should receive reset code in response');
+
+  const newPass = 'NewSecretPass123!';
+  const resetRes = await axios.post(`${BASE_URL}/auth/reset-password`, {
+    email: resetTargetEmail,
+    code: resetCode,
+    new_password: newPass,
+  });
+  assert.equal(resetRes.status, 200);
+  assert.ok(resetRes.data.success);
+
+  // 3. Verify login works with new password
+  const loginRes = await axios.post(`${BASE_URL}/auth/login`, {
+    email: resetTargetEmail,
+    password: newPass,
+  });
+  assert.equal(loginRes.status, 200);
+  assert.ok(loginRes.data.token);
+
+  // Revert back for other tests
+  const revertHash = '$2a$10$Y1s162xN48943.4Qx4B18OB2vQ8YQ81dF26mQ6v0147B.B0874y3.';
+  await db.updateUserPassword({ email: resetTargetEmail, newPassword: 'Admin@123', newPasswordHash: revertHash });
+});
+
 test('E2E - Products Catalog & Categories', async () => {
   const prodRes = await axios.get(`${BASE_URL}/products`);
   assert.equal(prodRes.status, 200);
@@ -241,4 +277,47 @@ test('E2E - Admin Authorization & Metrics', async () => {
   assert.equal(dashRes.status, 200);
   assert.ok(dashRes.data.metrics.totalUsers >= 1);
   assert.ok(typeof dashRes.data.metrics.totalProducts === 'number');
+});
+
+test('E2E - Admin Image Upload & Product Creation with Images', async () => {
+  const adminLogin = await axios.post(`${BASE_URL}/auth/login`, {
+    email: 'admin@dynastore.com',
+    password: 'Admin@123',
+  });
+  const adminToken = adminLogin.data.token;
+
+  // 1. Create FormData with a test image
+  const formData = new FormData();
+  const blob = new Blob([Buffer.from('fake-png-image-binary-data')], { type: 'image/png' });
+  formData.append('file', blob, 'test_cover.png');
+  formData.append('bucket', 'product-images');
+
+  const uploadRes = await axios.post(`${BASE_URL}/admin/upload`, formData, {
+    headers: {
+      Authorization: `Bearer ${adminToken}`,
+    },
+  });
+
+  assert.equal(uploadRes.status, 200);
+  assert.ok(uploadRes.data.success);
+  assert.ok(uploadRes.data.publicUrl, 'Should return public image URL');
+
+  // 2. Create product with uploaded cover image
+  const prodRes = await axios.post(
+    `${BASE_URL}/admin/products`,
+    {
+      title: `Neon Horizon ${Date.now()}`,
+      slug: `neon-horizon-${Date.now()}`,
+      price: 29.99,
+      cover_image: uploadRes.data.publicUrl,
+      screenshots: [uploadRes.data.publicUrl],
+      is_published: true,
+      file_path: 'games/neon_horizon.zip',
+    },
+    { headers: { Authorization: `Bearer ${adminToken}` } }
+  );
+
+  assert.equal(prodRes.status, 201);
+  assert.ok(prodRes.data.product);
+  assert.equal(prodRes.data.product.cover_image, uploadRes.data.publicUrl);
 });

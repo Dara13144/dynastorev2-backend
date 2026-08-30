@@ -16,7 +16,7 @@ export const ENV = {
 
   // Google OAuth
   GOOGLE: {
-    CLIENT_ID: process.env.GOOGLE_CLIENT_ID || '16446964112-ci1cf4v6vc551ppvm003107sgkqg96as.apps.googleusercontent.com',
+    CLIENT_ID: process.env.GOOGLE_CLIENT_ID || '',
     CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || '',
   },
 
@@ -47,5 +47,15 @@ export const ENV = {
   TELEGRAM: {
     BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN || '',
     ADMIN_CHAT_ID: process.env.TELEGRAM_ADMIN_CHAT_ID || '',
-  }
+  },
+
+  // SMTP / Gmail Email Configuration
+  SMTP: {
+    HOST: process.env.SMTP_HOST || process.env.EMAIL_HOST || 'smtp.gmail.com',
+    PORT: Number(process.env.SMTP_PORT || process.env.EMAIL_PORT || 587),
+    SECURE: process.env.SMTP_SECURE === 'true',
+    USER: process.env.SMTP_USER || process.env.EMAIL_USER || process.env.GMAIL_USER || '',
+    PASS: process.env.SMTP_PASS || process.env.EMAIL_PASS || process.env.GMAIL_PASS || process.env.GMAIL_APP_PASSWORD || '',
+    FROM: process.env.SMTP_FROM || process.env.EMAIL_FROM || 'DynaStore Security <no-reply@dynastore.com>',
+  },
 };

@@ -17,10 +17,23 @@ import orderRoutes from './routes/order.routes.js';
 import paymentRoutes from './routes/payment.routes.js';
 import walletRoutes from './routes/wallet.routes.js';
 import downloadRoutes from './routes/download.routes.js';
+import path from 'path';
+import fs from 'fs';
 import adminRoutes from './routes/admin.routes.js';
 import { cutluyWebhook } from './controllers/payment.controller.js';
 
 const app = express();
+
+// Ensure local uploads directory exists
+const uploadsDir = path.join(process.cwd(), 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  try {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  } catch (e) {
+    // ignore
+  }
+}
+app.use('/uploads', express.static(uploadsDir));
 
 // Security Middlewares
 app.use(helmet({

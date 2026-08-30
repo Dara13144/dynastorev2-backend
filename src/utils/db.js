@@ -292,12 +292,23 @@ export const db = {
   store: devStore,
 
   // User Profile methods
+  userPasswordCache: new Map(),
+
   async findUserByEmail(email) {
+    if (!email) return null;
+    const cleanEmail = email.toLowerCase().trim();
     if (isConfigured && supabase) {
-      const { data } = await supabase.from('profiles').select('*').eq('email', email.toLowerCase()).maybeSingle();
+      const { data } = await supabase.from('profiles').select('*').eq('email', cleanEmail).maybeSingle();
+      if (data && this.userPasswordCache.has(cleanEmail)) {
+        data.password_hash = this.userPasswordCache.get(cleanEmail);
+      }
       return data;
     }
-    return devStore.profiles.find(u => u.email.toLowerCase() === email.toLowerCase()) || null;
+    const devUser = devStore.profiles.find(u => u.email.toLowerCase() === cleanEmail) || null;
+    if (devUser && this.userPasswordCache.has(cleanEmail)) {
+      devUser.password_hash = this.userPasswordCache.get(cleanEmail);
+    }
+    return devUser;
   },
 
   async findUserById(id) {
@@ -356,11 +367,18 @@ export const db = {
         is_active: true,
       };
 
-      const { data, error } = await supabase.from('profiles').upsert(profilePayload, { onConflict: 'id' }).select().single();
+      let { data, error } = await supabase.from('profiles').upsert(profilePayload, { onConflict: 'id' }).select().single();
+      if (error && (error.code === '23505' || error.message?.includes('profiles_username_key'))) {
+        profilePayload.username = `${profilePayload.username.slice(0, 15)}_${Date.now().toString().slice(-4)}`;
+        const retry = await supabase.from('profiles').upsert(profilePayload, { onConflict: 'id' }).select().single();
+        data = retry.data;
+        error = retry.error;
+      }
+
       if (error && !data) {
         console.warn('Profile upsert warning:', error.message);
         // If foreign key constraint failed, try finding profile
-        const { data: fallbackProfile } = await supabase.from('profiles').select('*').eq('email', userData.email.toLowerCase()).single();
+        const { data: fallbackProfile } = await supabase.from('profiles').select('*').eq('email', userData.email.toLowerCase()).maybeSingle();
         if (fallbackProfile) return fallbackProfile;
         throw error;
       }
@@ -458,6 +476,62 @@ export const db = {
       return devStore.profiles[idx];
     }
     return null;
+  },
+
+  // In-Memory store for password reset verification codes & tokens
+  resetCache: new Map(),
+
+  storePasswordReset({ email, code, token, expiresAt }) {
+    this.resetCache.set(email.toLowerCase(), {
+      code,
+      token,
+      expiresAt: expiresAt || Date.now() + 15 * 60 * 1000,
+    });
+  },
+
+  verifyPasswordReset({ email, code, token }) {
+    const entry = this.resetCache.get(email.toLowerCase());
+    if (!entry) return false;
+    if (Date.now() > entry.expiresAt) {
+      this.resetCache.delete(email.toLowerCase());
+      return false;
+    }
+    if (code && entry.code === code.trim()) return true;
+    if (token && entry.token === token.trim()) return true;
+    return false;
+  },
+
+  consumePasswordReset(email) {
+    this.resetCache.delete(email.toLowerCase());
+  },
+
+  async updateUserPassword({ email, newPassword, newPasswordHash }) {
+    const cleanEmail = email.toLowerCase().trim();
+    this.userPasswordCache.set(cleanEmail, newPasswordHash);
+    const user = await this.findUserByEmail(cleanEmail);
+    if (!user) throw new Error('User not found');
+
+    if (isConfigured && supabase) {
+      try {
+        await supabase.auth.admin.updateUserById(user.id, { password: newPassword });
+      } catch (authErr) {
+        console.warn('Supabase auth password update notice:', authErr.message);
+      }
+      try {
+        await supabase.from('profiles').update({ password_hash: newPasswordHash, updated_at: new Date().toISOString() }).eq('id', user.id);
+      } catch (pErr) {
+        // ignore if column doesn't exist
+      }
+      return { ...user, password_hash: newPasswordHash };
+    }
+
+    const idx = devStore.profiles.findIndex(u => u.email.toLowerCase() === cleanEmail);
+    if (idx !== -1) {
+      devStore.profiles[idx].password_hash = newPasswordHash;
+      devStore.profiles[idx].updated_at = new Date().toISOString();
+      return devStore.profiles[idx];
+    }
+    return { ...user, password_hash: newPasswordHash };
   },
 
   // Products
