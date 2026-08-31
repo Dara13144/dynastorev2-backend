@@ -27,7 +27,10 @@ export const getAllProducts = async (req, res, next) => {
 export const getProductBySlug = async (req, res, next) => {
   try {
     const { slug } = req.params;
-    const product = await db.getProductBySlug(slug);
+    let product = await db.getProductBySlug(slug);
+    if (!product && slug) {
+      product = await db.getProductById(slug);
+    }
 
     if (!product) {
       return res.status(404).json({
