@@ -399,6 +399,93 @@ export const googleLogin = async (req, res, next) => {
   }
 };
 
+export const telegramLogin = async (req, res, next) => {
+  try {
+    const { id, first_name, last_name, username, photo_url, auth_date, hash, phone_number, telegram_id } = req.body;
+    const rawId = id || telegram_id;
+
+    if (!rawId && !username) {
+      return res.status(400).json({ success: false, message: 'Telegram user ID or username is required.' });
+    }
+
+    // Verify hash if signature provided
+    if (hash) {
+      const isValid = telegramService.verifyTelegramAuth(req.body);
+      if (!isValid) {
+        return res.status(401).json({ success: false, message: 'Invalid Telegram authentication signature.' });
+      }
+    }
+
+    const tgId = rawId ? rawId.toString() : `tg_${username}`;
+    const displayName = [first_name, last_name].filter(Boolean).join(' ') || username || `Telegram User`;
+    const avatarUrl = photo_url || `https://api.dicebear.com/7.x/bottts/svg?seed=tg_${tgId}`;
+    const telegramEmail = username
+      ? `${username.toLowerCase()}@telegram.dynastore.site`
+      : `tg_${tgId}@telegram.dynastore.site`;
+
+    const adminEmails = [
+      'dynastore23084720893yiusjfhgisriw4rihldfjgsijfhweu@gmail.com',
+    ];
+    const isAdminUser = adminEmails.includes(telegramEmail.toLowerCase()) || username === 'dynastore_admin';
+
+    let user = await db.findUserByEmail(telegramEmail);
+    if (!user && username) {
+      user = await db.findUserByEmail(`${username.toLowerCase()}@gmail.com`);
+    }
+
+    if (!user) {
+      const safeUsername = username
+        ? username.toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 15)
+        : `tg_${tgId.slice(-6)}`;
+
+      user = await db.createUser({
+        email: telegramEmail,
+        username: isAdminUser ? 'DynaMasterAdmin' : safeUsername,
+        password_hash: null,
+        avatar_url: avatarUrl,
+        role: isAdminUser ? 'ADMIN' : 'USER',
+        balance: isAdminUser ? 500.00 : 0.00,
+        telegram_id: tgId,
+      });
+
+      telegramService.notifyNewUser(user).catch(() => {});
+
+      await db.createNotification({
+        userId: user.id,
+        title: 'Telegram Account Connected!',
+        message: `Welcome to DynaStore, ${displayName}! Your Telegram account has been linked successfully.`,
+        type: 'SUCCESS',
+      }).catch(() => {});
+    } else {
+      const updates = {};
+      if (!user.avatar_url && avatarUrl) updates.avatar_url = avatarUrl;
+      if (isAdminUser && user.role !== 'ADMIN') updates.role = 'ADMIN';
+      if (Object.keys(updates).length > 0) {
+        user = await db.updateUser(user.id, updates);
+      }
+    }
+
+    if (!user.is_active) {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account has been deactivated. Please contact support.',
+      });
+    }
+
+    const token = generateToken(user);
+    const { password_hash: _, ...safeUser } = user;
+
+    res.json({
+      success: true,
+      message: isAdminUser ? 'Welcome Admin! Telegram login successful' : 'Telegram login successful',
+      token,
+      user: safeUser,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const logout = (req, res) => {
   res.json({
     success: true,

@@ -421,3 +421,28 @@ test('E2E - Admin Image Upload & Product Creation with Images', async () => {
   assert.ok(prodRes.data.product);
   assert.equal(prodRes.data.product.cover_image, uploadRes.data.publicUrl);
 });
+
+test('E2E - Telegram Login & User Account Provisioning', async () => {
+  const tgUser = {
+    id: 987654321,
+    first_name: 'Dara',
+    last_name: 'Sok',
+    username: `dara_tg_${Date.now()}`,
+    photo_url: 'https://api.dicebear.com/7.x/bottts/svg?seed=dara_tg',
+  };
+
+  const tgRes = await axios.post(`${BASE_URL}/auth/telegram`, tgUser);
+  assert.equal(tgRes.status, 200);
+  assert.ok(tgRes.data.success);
+  assert.ok(tgRes.data.token, 'Should issue JWT token for Telegram login');
+  assert.equal(tgRes.data.user.role, 'USER');
+  assert.ok(tgRes.data.user.email.includes('telegram.dynastore.site'));
+
+  // Test authenticated request with Telegram JWT
+  const meRes = await axios.get(`${BASE_URL}/auth/me`, {
+    headers: { Authorization: `Bearer ${tgRes.data.token}` },
+  });
+  assert.equal(meRes.status, 200);
+  assert.equal(meRes.data.user.email, tgRes.data.user.email);
+});
+
