@@ -48,12 +48,16 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
 }));
 
-// Rate Limiting
+// Rate Limiting (Skip Real-time QR Polling & Health Checks)
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 300,
+  max: 10000, // High capacity for real-time polling
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => {
+    const p = req.path || '';
+    return p.includes('/qr/') || p.includes('/device-qr/') || p.includes('/health') || p.includes('/status');
+  },
   message: { success: false, message: 'Too many requests from this IP, please try again after 15 minutes' },
 });
 
