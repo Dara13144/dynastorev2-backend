@@ -446,3 +446,45 @@ test('E2E - Telegram Login & User Account Provisioning', async () => {
   assert.equal(meRes.data.user.email, tgRes.data.user.email);
 });
 
+test('E2E - Telegram QR Code Scan Login, Polling & Auto-Confirmation Flow', async () => {
+  // 1. Create QR Session
+  const createRes = await axios.post(`${BASE_URL}/auth/telegram/qr/create`);
+  assert.equal(createRes.status, 200);
+  assert.ok(createRes.data.sessionId, 'Should return a unique sessionId');
+  assert.ok(createRes.data.deepLink, 'Should return Telegram deepLink');
+
+  const sessionId = createRes.data.sessionId;
+
+  // 2. Poll initial status (should be PENDING)
+  const initialStatus = await axios.get(`${BASE_URL}/auth/telegram/qr/status/${sessionId}`);
+  assert.equal(initialStatus.status, 200);
+  assert.equal(initialStatus.data.status, 'PENDING');
+
+  // 3. Confirm QR scan (simulating user phone scanning QR)
+  const confirmRes = await axios.post(`${BASE_URL}/auth/telegram/qr/confirm`, {
+    sessionId,
+    id: 1122334455,
+    username: `qr_gamer_${Date.now()}`,
+    first_name: 'QR',
+    last_name: 'Player',
+  });
+  assert.equal(confirmRes.status, 200);
+  assert.ok(confirmRes.data.success);
+  assert.ok(confirmRes.data.token);
+
+  // 4. Poll confirmed status (should be CONFIRMED with token)
+  const confirmedStatus = await axios.get(`${BASE_URL}/auth/telegram/qr/status/${sessionId}`);
+  assert.equal(confirmedStatus.status, 200);
+  assert.equal(confirmedStatus.data.status, 'CONFIRMED');
+  assert.ok(confirmedStatus.data.token, 'Must return signed JWT token on CONFIRMED status');
+  assert.ok(confirmedStatus.data.user, 'Must return safe user object');
+
+  // 5. Test authenticated session with returned token
+  const meRes = await axios.get(`${BASE_URL}/auth/me`, {
+    headers: { Authorization: `Bearer ${confirmedStatus.data.token}` },
+  });
+  assert.equal(meRes.status, 200);
+  assert.equal(meRes.data.user.id, confirmedStatus.data.user.id);
+});
+
+

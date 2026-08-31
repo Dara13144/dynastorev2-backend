@@ -13,6 +13,9 @@ import {
   verifyOtp,
   loginWithOtp,
   telegramLogin,
+  createTelegramQrSession,
+  getTelegramQrStatus,
+  confirmTelegramQrSession,
 } from '../controllers/auth.controller.js';
 import { requireAuth } from '../middleware/auth.middleware.js';
 
@@ -22,6 +25,9 @@ router.post('/register', register);
 router.post('/login', login);
 router.post('/google', googleLogin);
 router.post('/telegram', telegramLogin);
+router.post('/telegram/qr/create', createTelegramQrSession);
+router.get('/telegram/qr/status/:sessionId', getTelegramQrStatus);
+router.post('/telegram/qr/confirm', confirmTelegramQrSession);
 router.post('/send-otp', sendOtp);
 router.post('/resend-otp', resendOtp);
 router.post('/verify-otp', verifyOtp);

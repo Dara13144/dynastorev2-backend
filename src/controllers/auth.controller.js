@@ -486,6 +486,126 @@ export const telegramLogin = async (req, res, next) => {
   }
 };
 
+// In-Memory store for Telegram QR Code Login Sessions
+const telegramQrSessions = new Map();
+
+// Periodic cleanup of expired QR sessions
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, session] of telegramQrSessions.entries()) {
+    if (session.expiresAt < now) {
+      telegramQrSessions.delete(id);
+    }
+  }
+}, 60000);
+
+export const createTelegramQrSession = (req, res) => {
+  const sessionId = `tg_qr_${crypto.randomBytes(16).toString('hex')}`;
+  const deepLink = `https://t.me/DynaStoreAuthBot?start=login_${sessionId}`;
+  const webAuthUrl = `https://dynastore.site/login?tg_session=${sessionId}`;
+
+  telegramQrSessions.set(sessionId, {
+    sessionId,
+    status: 'PENDING',
+    createdAt: Date.now(),
+    expiresAt: Date.now() + 3 * 60 * 1000, // 3 minutes
+    token: null,
+    user: null,
+  });
+
+  res.json({
+    success: true,
+    sessionId,
+    deepLink,
+    webAuthUrl,
+    expiresIn: 180,
+  });
+};
+
+export const getTelegramQrStatus = (req, res) => {
+  const { sessionId } = req.params;
+  const session = telegramQrSessions.get(sessionId);
+
+  if (!session) {
+    return res.status(404).json({ success: false, status: 'EXPIRED', message: 'QR session not found or expired' });
+  }
+
+  if (session.expiresAt < Date.now()) {
+    telegramQrSessions.delete(sessionId);
+    return res.status(410).json({ success: false, status: 'EXPIRED', message: 'QR session expired' });
+  }
+
+  if (session.status === 'CONFIRMED') {
+    return res.json({
+      success: true,
+      status: 'CONFIRMED',
+      token: session.token,
+      user: session.user,
+    });
+  }
+
+  res.json({
+    success: true,
+    status: 'PENDING',
+  });
+};
+
+export const confirmTelegramQrSession = async (req, res, next) => {
+  try {
+    const { sessionId, id, username, first_name, last_name, photo_url, hash, telegram_id } = req.body;
+    const session = telegramQrSessions.get(sessionId);
+
+    if (!session) {
+      return res.status(404).json({ success: false, message: 'QR session not found or expired.' });
+    }
+
+    if (session.expiresAt < Date.now()) {
+      telegramQrSessions.delete(sessionId);
+      return res.status(410).json({ success: false, message: 'QR code expired. Please refresh the QR code.' });
+    }
+
+    const rawId = id || telegram_id || (username ? `tg_${username}` : `tg_${Date.now()}`);
+    const tgUsername = username || `user_${rawId.toString().slice(-4)}`;
+    const displayName = [first_name, last_name].filter(Boolean).join(' ') || tgUsername;
+    const avatarUrl = photo_url || `https://api.dicebear.com/7.x/bottts/svg?seed=tg_${rawId}`;
+    const telegramEmail = `${tgUsername.toLowerCase()}@telegram.dynastore.site`;
+
+    const adminEmails = [
+      'dynastore23084720893yiusjfhgisriw4rihldfjgsijfhweu@gmail.com',
+    ];
+    const isAdminUser = adminEmails.includes(telegramEmail.toLowerCase()) || tgUsername === 'dynastore_admin';
+
+    let user = await db.findUserByEmail(telegramEmail);
+    if (!user) {
+      user = await db.createUser({
+        email: telegramEmail,
+        username: isAdminUser ? 'DynaMasterAdmin' : tgUsername.slice(0, 15),
+        password_hash: null,
+        avatar_url: avatarUrl,
+        role: isAdminUser ? 'ADMIN' : 'USER',
+        balance: isAdminUser ? 500.00 : 0.00,
+        telegram_id: rawId.toString(),
+      });
+    }
+
+    const token = generateToken(user);
+    const { password_hash: _, ...safeUser } = user;
+
+    session.status = 'CONFIRMED';
+    session.token = token;
+    session.user = safeUser;
+
+    res.json({
+      success: true,
+      message: 'Telegram QR Login Confirmed successfully!',
+      token,
+      user: safeUser,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const logout = (req, res) => {
   res.json({
     success: true,
