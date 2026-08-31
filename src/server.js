@@ -125,6 +125,7 @@ app.get('/api/health', (req, res) => {
 
 // API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api', authRoutes); // Route alias (/api/verify-otp, /api/forgot-password, /api/reset-password)
 app.use('/api/products', productRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/cart', cartRoutes);

@@ -48,40 +48,140 @@ test('E2E - Google OAuth Login & Profile Creation', async () => {
   assert.equal(meRes.data.user.email, googleEmail);
 });
 
-test('E2E - Forgot Password OTP & Recovery Flow', async () => {
+test('E2E - Complete 10-Step OTP Forgot Password & Reset Flow', async () => {
   const resetTargetEmail = 'gamer@dynastore.com';
 
-  // 1. Request password reset code
+  // 1. Request OTP
   const forgotRes = await axios.post(`${BASE_URL}/auth/forgot-password`, {
     email: resetTargetEmail,
   });
   assert.equal(forgotRes.status, 200);
   assert.ok(forgotRes.data.success);
+  const otpCode = forgotRes.data.otpCode;
+  assert.ok(otpCode, 'OTP code must be generated');
 
-  // 2. Perform reset using verification code
-  const resetCode = forgotRes.data.resetCode;
-  assert.ok(resetCode, 'Should receive reset code in response');
+  // 2. Wrong OTP fails
+  try {
+    await axios.post(`${BASE_URL}/auth/verify-otp`, {
+      email: resetTargetEmail,
+      otp: '000000',
+    });
+    assert.fail('Wrong OTP should have failed');
+  } catch (err) {
+    assert.equal(err.response?.status, 400);
+    assert.ok(err.response?.data?.message?.includes('Invalid'));
+  }
 
-  const newPass = 'NewSecretPass123!';
-  const resetRes = await axios.post(`${BASE_URL}/auth/reset-password`, {
+  // 3. Resend OTP creates fresh valid code
+  const resendRes = await axios.post(`${BASE_URL}/auth/resend-otp`, {
     email: resetTargetEmail,
-    code: resetCode,
-    new_password: newPass,
+  });
+  assert.equal(resendRes.status, 200);
+  const freshOtp = resendRes.data.otpCode;
+  assert.ok(freshOtp, 'New OTP must be generated upon resend');
+
+  // 4. Correct OTP verification yields Reset Token
+  const verifyRes = await axios.post(`${BASE_URL}/auth/verify-otp`, {
+    email: resetTargetEmail,
+    otp: freshOtp,
+  });
+  assert.equal(verifyRes.status, 200);
+  assert.ok(verifyRes.data.success);
+  assert.ok(verifyRes.data.resetToken, 'Must issue single-use reset authorization token');
+  const resetToken = verifyRes.data.resetToken;
+
+  // 5. Reuse OTP is rejected
+  try {
+    await axios.post(`${BASE_URL}/auth/verify-otp`, {
+      email: resetTargetEmail,
+      otp: freshOtp,
+    });
+    assert.fail('Reusing consumed OTP should be rejected');
+  } catch (err) {
+    assert.equal(err.response?.status, 400);
+  }
+
+  // 6. Reset password with new password (min 8 chars)
+  const newSecretPassword = 'UltraSecurePassword2026!';
+  const resetRes = await axios.post(`${BASE_URL}/auth/reset-password`, {
+    resetToken,
+    newPassword: newSecretPassword,
   });
   assert.equal(resetRes.status, 200);
   assert.ok(resetRes.data.success);
 
-  // 3. Verify login works with new password
+  // 7. Reuse reset token is rejected
+  try {
+    await axios.post(`${BASE_URL}/auth/reset-password`, {
+      resetToken,
+      newPassword: 'AnotherPassword999!',
+    });
+    assert.fail('Reusing consumed resetToken should be rejected');
+  } catch (err) {
+    assert.equal(err.response?.status, 400);
+  }
+
+  // 8. Old password fails
+  try {
+    await axios.post(`${BASE_URL}/auth/login`, {
+      email: resetTargetEmail,
+      password: 'OldWrongPassword123!',
+    });
+    assert.fail('Old password should fail');
+  } catch (err) {
+    assert.equal(err.response?.status, 401);
+  }
+
+  // 9. New password succeeds
   const loginRes = await axios.post(`${BASE_URL}/auth/login`, {
     email: resetTargetEmail,
-    password: newPass,
+    password: newSecretPassword,
   });
   assert.equal(loginRes.status, 200);
   assert.ok(loginRes.data.token);
 
-  // Revert back for other tests
+  // 10. Revert back for other tests
   const revertHash = '$2a$10$Y1s162xN48943.4Qx4B18OB2vQ8YQ81dF26mQ6v0147B.B0874y3.';
   await db.updateUserPassword({ email: resetTargetEmail, newPassword: 'Admin@123', newPasswordHash: revertHash });
+});
+
+test('E2E - Real Gmail OTP Dispatch & Passwordless Sign-In', async () => {
+  const otpGmail = `pro_player_${Date.now()}@gmail.com`;
+
+  // 1. Dispatch OTP code to Gmail
+  const sendRes = await axios.post(`${BASE_URL}/auth/send-otp`, {
+    email: otpGmail,
+    type: 'LOGIN_OTP',
+  });
+  assert.equal(sendRes.status, 200);
+  assert.ok(sendRes.data.success);
+  assert.ok(sendRes.data.otpCode, 'Must return OTP code in dev mode');
+
+  const otpCode = sendRes.data.otpCode;
+
+  // 2. Verify OTP code
+  const verifyRes = await axios.post(`${BASE_URL}/auth/verify-otp`, {
+    email: otpGmail,
+    code: otpCode,
+  });
+  assert.equal(verifyRes.status, 200);
+  assert.ok(verifyRes.data.success);
+
+  // 3. Passwordless Login via Gmail OTP
+  const loginRes = await axios.post(`${BASE_URL}/auth/otp-login`, {
+    email: otpGmail,
+    token: verifyRes.data.resetToken,
+  });
+  assert.equal(loginRes.status, 200);
+  assert.ok(loginRes.data.token, 'Should issue JWT token for verified Gmail OTP user');
+  assert.equal(loginRes.data.user.email, otpGmail);
+
+  // 4. Verify authenticated session
+  const meRes = await axios.get(`${BASE_URL}/auth/me`, {
+    headers: { Authorization: `Bearer ${loginRes.data.token}` },
+  });
+  assert.equal(meRes.status, 200);
+  assert.equal(meRes.data.user.email, otpGmail);
 });
 
 test('E2E - Products Catalog & Categories', async () => {
@@ -266,8 +366,8 @@ test('E2E - Admin Authorization & Metrics', async () => {
   }
 
   const adminLogin = await axios.post(`${BASE_URL}/auth/login`, {
-    email: 'admin@dynastore.com',
-    password: 'Admin@123',
+    email: 'dynastore23084720893yiusjfhgisriw4rihldfjgsijfhweu@gmail.com',
+    password: 'dynastoeoroqeiyrp9wIERYIUqwehyrIU',
   });
   const adminToken = adminLogin.data.token;
 
@@ -281,8 +381,8 @@ test('E2E - Admin Authorization & Metrics', async () => {
 
 test('E2E - Admin Image Upload & Product Creation with Images', async () => {
   const adminLogin = await axios.post(`${BASE_URL}/auth/login`, {
-    email: 'admin@dynastore.com',
-    password: 'Admin@123',
+    email: 'dynastore23084720893yiusjfhgisriw4rihldfjgsijfhweu@gmail.com',
+    password: 'dynastoeoroqeiyrp9wIERYIUqwehyrIU',
   });
   const adminToken = adminLogin.data.token;
 

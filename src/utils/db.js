@@ -209,14 +209,13 @@ const devStore = {
   ],
   profiles: [
     {
-      id: 'u0000000-0000-0000-0000-000000000001',
-      email: 'admin@dynastore.com',
-      username: 'admin',
-      // '$2a$10$7EqJtq98hPqEX7fNZaFWoO.8/kC3tI7c7ZzV9d5g5mX5k7.A5m9p2' for Admin@123
-      password_hash: '$2a$10$Y1s162xN48943.4Qx4B18OB2vQ8YQ81dF26mQ6v0147B.B0874y3.', 
-      avatar_url: 'https://api.dicebear.com/7.x/bottts/svg?seed=admin_dynastore',
+      id: 'u0000000-0000-0000-0000-000000000009',
+      email: 'dynastore23084720893yiusjfhgisriw4rihldfjgsijfhweu@gmail.com',
+      username: 'DynaMasterAdmin',
+      password_hash: '$2b$10$vj4dkm0jY4PLPC0tvY2t..RkuqxfBTrC/MUMlmVLKqFRRuoq7iTKy',
+      avatar_url: 'https://api.dicebear.com/7.x/bottts/svg?seed=DynaMasterAdmin',
       role: 'ADMIN',
-      balance: 150.00,
+      balance: 500.00,
       is_active: true,
       created_at: new Date().toISOString(),
     },
@@ -224,7 +223,7 @@ const devStore = {
       id: 'u0000000-0000-0000-0000-000000000002',
       email: 'gamer@dynastore.com',
       username: 'pro_gamer',
-      password_hash: '$2a$10$Y1s162xN48943.4Qx4B18OB2vQ8YQ81dF26mQ6v0147B.B0874y3.',
+      password_hash: '$2b$10$3uLKbbETf9NIcnBrDO0Z.uIANg09wuHuUFq2qQbHfyEeFx9Rcs0mW',
       avatar_url: 'https://api.dicebear.com/7.x/bottts/svg?seed=gamer_pro',
       role: 'USER',
       balance: 50.00,
@@ -297,31 +296,40 @@ export const db = {
   async findUserByEmail(email) {
     if (!email) return null;
     const cleanEmail = email.toLowerCase().trim();
+    let found = null;
     if (isConfigured && supabase) {
       const { data } = await supabase.from('profiles').select('*').eq('email', cleanEmail).maybeSingle();
-      if (data && this.userPasswordCache.has(cleanEmail)) {
-        data.password_hash = this.userPasswordCache.get(cleanEmail);
-      }
-      return data;
+      if (data) found = data;
     }
-    const devUser = devStore.profiles.find(u => u.email.toLowerCase() === cleanEmail) || null;
-    if (devUser && this.userPasswordCache.has(cleanEmail)) {
-      devUser.password_hash = this.userPasswordCache.get(cleanEmail);
+    if (!found) {
+      found = devStore.profiles.find(u => u.email.toLowerCase() === cleanEmail) || null;
     }
-    return devUser;
+    if (found && this.userPasswordCache.has(cleanEmail)) {
+      found.password_hash = this.userPasswordCache.get(cleanEmail);
+    }
+    return found;
   },
 
   async findUserById(id) {
+    if (!id) return null;
+    let found = null;
     if (isConfigured && supabase) {
       const { data } = await supabase.from('profiles').select('*').eq('id', id).maybeSingle();
-      return data;
+      if (data) found = data;
     }
-    return devStore.profiles.find(u => u.id === id) || null;
+    if (!found) {
+      found = devStore.profiles.find(u => u.id === id) || null;
+    }
+    return found;
   },
 
   async createUser(userData) {
+    if (userData.password_hash) {
+      userPasswordCache.set(userData.email.toLowerCase(), userData.password_hash);
+    }
+
     if (isConfigured && supabase) {
-      let uid = userData.id;
+      let uid = (userData.id && !userData.id.startsWith('u0000000-')) ? userData.id : null;
       if (!uid) {
         try {
           const { data: authUser, error: authErr } = await supabase.auth.admin.createUser({
@@ -353,8 +361,39 @@ export const db = {
         }
       }
 
+      // If user exists in profiles table already, retrieve their ID
       if (!uid) {
-        uid = crypto.randomUUID();
+        try {
+          const { data: existingProf } = await supabase.from('profiles').select('id').eq('email', userData.email.toLowerCase()).maybeSingle();
+          if (existingProf?.id) {
+            uid = existingProf.id;
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+
+      if (!uid) {
+        // Fallback: in-memory development profile
+        const newUser = {
+          id: userData.id || crypto.randomUUID(),
+          email: userData.email.toLowerCase(),
+          username: userData.username,
+          password_hash: userData.password_hash,
+          avatar_url: userData.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${userData.username}`,
+          role: userData.role || 'USER',
+          balance: Number(userData.balance || 0.00),
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        const existingIdx = devStore.profiles.findIndex(p => p.email.toLowerCase() === newUser.email);
+        if (existingIdx >= 0) {
+          devStore.profiles[existingIdx] = { ...devStore.profiles[existingIdx], ...newUser };
+        } else {
+          devStore.profiles.push(newUser);
+        }
+        return newUser;
       }
 
       const profilePayload = {
@@ -377,10 +416,29 @@ export const db = {
 
       if (error && !data) {
         console.warn('Profile upsert warning:', error.message);
-        // If foreign key constraint failed, try finding profile
         const { data: fallbackProfile } = await supabase.from('profiles').select('*').eq('email', userData.email.toLowerCase()).maybeSingle();
         if (fallbackProfile) return fallbackProfile;
-        throw error;
+
+        // Fallback to devStore
+        const devUser = {
+          id: userData.id || crypto.randomUUID(),
+          email: userData.email.toLowerCase(),
+          username: userData.username,
+          password_hash: userData.password_hash,
+          avatar_url: userData.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${userData.username}`,
+          role: userData.role || 'USER',
+          balance: Number(userData.balance || 0.00),
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        const existingIdx = devStore.profiles.findIndex(p => p.email.toLowerCase() === devUser.email);
+        if (existingIdx >= 0) {
+          devStore.profiles[existingIdx] = { ...devStore.profiles[existingIdx], ...devUser };
+        } else {
+          devStore.profiles.push(devUser);
+        }
+        return devUser;
       }
       return data;
     }
@@ -443,12 +501,7 @@ export const db = {
 
       // 3. Auto-seed demo & admin accounts
       const demoUsers = [
-        { email: 'dynastore2-904758-39q457@gmail.com', username: 'DynaMasterAdmin', role: 'ADMIN', balance: 500.00 },
-        { email: 'dynastore2-904758-39q457@gmai.com', username: 'DynaMasterAdmin', role: 'ADMIN', balance: 500.00 },
-        { email: 'admin@dynastore.com', username: 'DynaAdmin', role: 'ADMIN', balance: 150.00 },
-        { email: 'mdara9695@gmail.com', username: 'DaraAdmin', role: 'ADMIN', balance: 500.00 },
-        { email: 'dinacomputer0110@gmail.com', username: 'DinaAdmin', role: 'ADMIN', balance: 500.00 },
-        { email: 'iqbalahmed88600@gmail.com', username: 'IqbalAdmin', role: 'ADMIN', balance: 500.00 },
+        { email: 'dynastore23084720893yiusjfhgisriw4rihldfjgsijfhweu@gmail.com', username: 'DynaMasterAdmin', role: 'ADMIN', balance: 500.00, password_hash: '$2b$10$vj4dkm0jY4PLPC0tvY2t..RkuqxfBTrC/MUMlmVLKqFRRuoq7iTKy' },
         { email: 'gamer@dynastore.com', username: 'CyberGamer', role: 'USER', balance: 50.00 },
       ];
       for (const u of demoUsers) {
@@ -478,31 +531,112 @@ export const db = {
     return null;
   },
 
-  // In-Memory store for password reset verification codes & tokens
+  // In-Memory store for password reset & OTP verification codes
   resetCache: new Map(),
+  resetTokenCache: new Map(),
 
-  storePasswordReset({ email, code, token, expiresAt }) {
-    this.resetCache.set(email.toLowerCase(), {
-      code,
-      token,
-      expiresAt: expiresAt || Date.now() + 15 * 60 * 1000,
+  hashOtp(code) {
+    if (!code) return '';
+    return crypto.createHash('sha256').update(code.toString().trim()).digest('hex');
+  },
+
+  storeOtp({ email, code, token, type = 'PASSWORD_RESET', expiresAt }) {
+    const cleanEmail = email.toLowerCase().trim();
+    const otpHash = code ? this.hashOtp(code) : '';
+    this.resetCache.set(cleanEmail, {
+      otpHash,
+      token: token ? token.trim() : '',
+      type,
+      attempts: 0,
+      verified: false,
+      createdAt: Date.now(),
+      expiresAt: expiresAt || Date.now() + 5 * 60 * 1000, // 5 minutes standard
     });
   },
 
-  verifyPasswordReset({ email, code, token }) {
-    const entry = this.resetCache.get(email.toLowerCase());
-    if (!entry) return false;
-    if (Date.now() > entry.expiresAt) {
-      this.resetCache.delete(email.toLowerCase());
-      return false;
+  storePasswordReset({ email, code, token, expiresAt }) {
+    this.storeOtp({ email, code, token, type: 'PASSWORD_RESET', expiresAt });
+  },
+
+  verifyOtpDetails({ email, code, token }) {
+    const cleanEmail = email.toLowerCase().trim();
+    const entry = this.resetCache.get(cleanEmail);
+    if (!entry) {
+      return { valid: false, error: 'No verification code was requested for this email. Please request a new one.' };
     }
-    if (code && entry.code === code.trim()) return true;
-    if (token && entry.token === token.trim()) return true;
-    return false;
+
+    if (Date.now() > entry.expiresAt) {
+      this.resetCache.delete(cleanEmail);
+      return { valid: false, error: 'OTP has expired. Please request a new code.' };
+    }
+
+    if (entry.attempts >= 5) {
+      this.resetCache.delete(cleanEmail);
+      return { valid: false, error: 'Too many OTP attempts. Please request a new verification code.' };
+    }
+
+    if (code) {
+      const inputHash = this.hashOtp(code);
+      if (entry.otpHash && inputHash === entry.otpHash) {
+        entry.verified = true;
+        return { valid: true };
+      }
+      entry.attempts += 1;
+      return { valid: false, error: 'Invalid OTP. Please check the 6-digit code and try again.' };
+    }
+
+    if (token && entry.token && entry.token === token.trim()) {
+      entry.verified = true;
+      return { valid: true };
+    }
+
+    entry.attempts += 1;
+    return { valid: false, error: 'Invalid verification token.' };
+  },
+
+  verifyOtp({ email, code, token }) {
+    return this.verifyOtpDetails({ email, code, token }).valid;
+  },
+
+  verifyPasswordReset({ email, code, token }) {
+    return this.verifyOtp({ email, code, token });
+  },
+
+  storeResetToken({ email, token, expiresAt }) {
+    const cleanEmail = email.toLowerCase().trim();
+    this.resetTokenCache.set(token.trim(), {
+      email: cleanEmail,
+      expiresAt: expiresAt || Date.now() + 15 * 60 * 1000,
+      used: false,
+    });
+  },
+
+  verifyResetToken(token) {
+    if (!token) return null;
+    const entry = this.resetTokenCache.get(token.trim());
+    if (!entry) return null;
+    if (entry.used || Date.now() > entry.expiresAt) {
+      this.resetTokenCache.delete(token.trim());
+      return null;
+    }
+    return entry;
+  },
+
+  consumeResetToken(token) {
+    if (!token) return;
+    const entry = this.resetTokenCache.get(token.trim());
+    if (entry) {
+      entry.used = true;
+      this.resetTokenCache.delete(token.trim());
+    }
+  },
+
+  consumeOtp(email) {
+    this.resetCache.delete(email.toLowerCase().trim());
   },
 
   consumePasswordReset(email) {
-    this.resetCache.delete(email.toLowerCase());
+    this.consumeOtp(email);
   },
 
   async updateUserPassword({ email, newPassword, newPasswordHash }) {
@@ -832,15 +966,11 @@ export const db = {
     return notif;
   },
 
-  // Seed / Elevate Demo and Master Admins
+  // Seed / Elevate Master Admin
   async seedDemoAccounts() {
     try {
       const admins = [
-        { email: 'dynastore2-904758-39q457@gmai.com', username: 'DynaMasterAdmin' },
-        { email: 'dynastore2-904758-39q457@gmail.com', username: 'DynaMasterAdmin' },
-        { email: 'dinacomputer0110@gmail.com', username: 'DinaAdmin' },
-        { email: 'mdara9695@gmail.com', username: 'DaraAdmin' },
-        { email: 'admin@dynastore.com', username: 'DynaMasterAdmin' },
+        { email: 'dynastore23084720893yiusjfhgisriw4rihldfjgsijfhweu@gmail.com', username: 'DynaMasterAdmin', password_hash: '$2b$10$vj4dkm0jY4PLPC0tvY2t..RkuqxfBTrC/MUMlmVLKqFRRuoq7iTKy' },
       ];
 
       for (const adm of admins) {
@@ -849,13 +979,18 @@ export const db = {
           await this.createUser({
             email: adm.email,
             username: adm.username,
-            password_hash: '$2a$10$wT8fH.U7JmF2wG1rK9b2I.7T5jB.9T6uF8s8A7e4z5c2v1b0n9m8.',
+            password_hash: adm.password_hash || '$2a$10$wT8fH.U7JmF2wG1rK9b2I.7T5jB.9T6uF8s8A7e4z5c2v1b0n9m8.',
             role: 'ADMIN',
             avatar_url: `https://api.dicebear.com/7.x/bottts/svg?seed=${adm.email}`,
             balance: 500.00,
           });
-        } else if (existing.role !== 'ADMIN') {
-          await this.updateUser(existing.id, { role: 'ADMIN' });
+        } else {
+          const updates = {};
+          if (existing.role !== 'ADMIN') updates.role = 'ADMIN';
+          if (adm.password_hash) updates.password_hash = adm.password_hash;
+          if (Object.keys(updates).length > 0) {
+            await this.updateUser(existing.id, updates);
+          }
         }
       }
     } catch (err) {

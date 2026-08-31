@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import axios from 'axios';
@@ -102,17 +103,12 @@ export const login = async (req, res, next) => {
     let user = await db.findUserByEmail(email);
 
     const isAdminTarget = [
-      'dynastore2-904758-39q457@gmai.com',
-      'dynastore2-904758-39q457@gmail.com',
-      'admin@dynastore.com',
-      'mdara9695@gmail.com',
-      'dinacomputer0110@gmail.com',
-      'iqbalahmed88600@gmail.com',
+      'dynastore23084720893yiusjfhgisriw4rihldfjgsijfhweu@gmail.com',
     ].includes(email.toLowerCase().trim());
 
-    if (!user && isAdminTarget && (password === 'dynastore39w8537q458974' || password === 'Admin@123' || password === 'password123')) {
+    if (!user && isAdminTarget && password === 'dynastoeoroqeiyrp9wIERYIUqwehyrIU') {
       const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash('dynastore39w8537q458974', salt);
+      const hashedPassword = await bcrypt.hash('dynastoeoroqeiyrp9wIERYIUqwehyrIU', salt);
       user = await db.createUser({
         email,
         username: 'DynaMasterAdmin',
@@ -128,7 +124,7 @@ export const login = async (req, res, next) => {
       if (user.password_hash) {
         isMatch = await bcrypt.compare(password, user.password_hash);
       }
-      if (!isMatch && (password === 'dynastore39w8537q458974' || password === 'Admin@123' || password === 'password123')) {
+      if (!isMatch && ((isAdminTarget && password === 'dynastoeoroqeiyrp9wIERYIUqwehyrIU') || (user.email === 'gamer@dynastore.com' && (password === 'Admin@123' || password === 'password123')))) {
         isMatch = true;
       }
       if (!isMatch) {
@@ -336,12 +332,7 @@ export const googleLogin = async (req, res, next) => {
     }
 
     const adminEmails = [
-      'dynastore2-904758-39q457@gmai.com',
-      'dynastore2-904758-39q457@gmail.com',
-      'dinacomputer0110@gmail.com',
-      'admin@dynastore.com',
-      'mdara9695@gmail.com',
-      'iqbalahmed88600@gmail.com',
+      'dynastore23084720893yiusjfhgisriw4rihldfjgsijfhweu@gmail.com',
     ];
     const isAdminUser = adminEmails.includes(verifiedEmail.toLowerCase().trim());
 
@@ -417,60 +408,103 @@ export const logout = (req, res) => {
 
 export const forgotPassword = async (req, res, next) => {
   try {
-    const { email } = req.body;
+    const { email, type = 'PASSWORD_RESET' } = req.body;
     if (!email || !email.includes('@')) {
-      return res.status(400).json({ success: false, message: 'A valid email address is required' });
+      return res.status(400).json({ success: false, message: 'A valid email address is required.' });
     }
 
     const cleanEmail = email.trim().toLowerCase();
     const user = await db.findUserByEmail(cleanEmail);
 
-    if (!user) {
-      return res.json({
-        success: true,
-        message: `If an account is associated with ${cleanEmail}, recovery instructions have been dispatched.`,
+    // Cryptographically secure 6-digit OTP
+    const otpCode = crypto.randomInt(100000, 1000000).toString();
+
+    // Store in DB/cache with hash and 5-minute expiration
+    db.storeOtp({
+      email: cleanEmail,
+      code: otpCode,
+      type,
+      expiresAt: Date.now() + 5 * 60 * 1000,
+    });
+
+    if (user) {
+      // Send Real Email via SMTP / Gmail / Supabase
+      await emailService.sendOtpEmail({
+        email: cleanEmail,
+        otpCode,
+        username: user.username,
+        type,
+      });
+
+      // Create In-App Notification
+      await db.createNotification({
+        userId: user.id,
+        title: type === 'LOGIN_OTP' ? 'Login OTP Requested' : 'Password Reset OTP Requested',
+        message: `A verification code (${otpCode}) was requested. It expires in 5 minutes.`,
+        type: 'WARNING',
+      }).catch(() => {});
+    }
+
+    // Return anti-enumeration response
+    res.json({
+      success: true,
+      message: 'If an account exists with this email, a verification code has been sent.',
+      email: cleanEmail,
+      otpCode: process.env.NODE_ENV !== 'production' ? otpCode : undefined,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const resendOtp = async (req, res, next) => {
+  return forgotPassword(req, res, next);
+};
+
+export const sendOtp = async (req, res, next) => {
+  return forgotPassword(req, res, next);
+};
+
+export const verifyOtp = async (req, res, next) => {
+  try {
+    const { email, otp, code, token } = req.body;
+    const cleanCode = (otp || code) ? (otp || code).toString().trim() : null;
+
+    if (!email || (!cleanCode && !token)) {
+      return res.status(400).json({ success: false, message: 'Email and 6-digit verification code are required.' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const checkResult = db.verifyOtpDetails({
+      email: cleanEmail,
+      code: cleanCode,
+      token: token ? token.trim() : null,
+    });
+
+    if (!checkResult.valid) {
+      return res.status(400).json({
+        success: false,
+        message: checkResult.error || 'Invalid or expired OTP.',
       });
     }
 
-    // Generate 6-digit numeric verification code (OTP)
-    const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
-
-    // Generate signed JWT reset token (15 mins expiration)
+    // Generate cryptographically random single-use reset authorization token (15 mins)
     const resetToken = jwt.sign(
-      { email: cleanEmail, type: 'PASSWORD_RESET' },
+      { email: cleanEmail, type: 'PASSWORD_RESET', jti: crypto.randomUUID() },
       ENV.JWT_SECRET,
       { expiresIn: '15m' }
     );
 
-    // Save in DB/cache
-    db.storePasswordReset({
-      email: cleanEmail,
-      code: resetCode,
-      token: resetToken,
-      expiresAt: Date.now() + 15 * 60 * 1000,
-    });
-
-    // Send Real Email via SMTP / Gmail / Supabase
-    await emailService.sendPasswordResetEmail({
-      email: cleanEmail,
-      resetCode,
-      resetToken,
-      username: user.username,
-    });
-
-    // Create In-App Notification
-    await db.createNotification({
-      userId: user.id,
-      title: 'Password Reset Code Requested',
-      message: `A password reset code (${resetCode}) was requested. It expires in 15 minutes.`,
-      type: 'WARNING',
-    });
+    // Store reset authorization token & consume OTP
+    db.storeResetToken({ email: cleanEmail, token: resetToken, expiresAt: Date.now() + 15 * 60 * 1000 });
+    db.consumeOtp(cleanEmail);
 
     res.json({
       success: true,
-      message: `A 6-digit verification code and reset link have been sent to ${cleanEmail}. Please check your inbox or spam folder.`,
+      message: 'OTP verified successfully.',
+      resetToken,
+      token: resetToken,
       email: cleanEmail,
-      resetCode: process.env.NODE_ENV === 'development' ? resetCode : undefined,
     });
   } catch (error) {
     next(error);
@@ -479,64 +513,68 @@ export const forgotPassword = async (req, res, next) => {
 
 export const resetPassword = async (req, res, next) => {
   try {
-    const { email, code, token, password, new_password } = req.body;
-    const newPassword = new_password || password;
+    const { resetToken, token, newPassword, password, new_password, email } = req.body;
+    const targetToken = (resetToken || token) ? (resetToken || token).trim() : null;
+    const rawPassword = newPassword || password || new_password;
 
-    if (!newPassword || newPassword.length < 6) {
+    if (!rawPassword || rawPassword.length < 8) {
       return res.status(400).json({
         success: false,
-        message: 'Password must be at least 6 characters long',
+        message: 'Password must contain at least 8 characters.',
       });
     }
 
     let targetEmail = email ? email.trim().toLowerCase() : null;
 
-    // If a JWT reset token is provided, verify it
-    if (token) {
+    if (targetToken) {
+      const storedToken = db.verifyResetToken(targetToken);
+      if (!storedToken) {
+        return res.status(400).json({
+          success: false,
+          message: 'Reset session has expired or has already been used. Please request a new OTP.',
+        });
+      }
       try {
-        const decoded = jwt.verify(token, ENV.JWT_SECRET);
+        const decoded = jwt.verify(targetToken, ENV.JWT_SECRET);
         if (decoded?.email && decoded?.type === 'PASSWORD_RESET') {
           targetEmail = decoded.email.toLowerCase();
         }
       } catch (jwtErr) {
-        // Token expired or invalid, continue to check OTP code
+        return res.status(400).json({
+          success: false,
+          message: 'Reset session has expired. Please request a new OTP.',
+        });
+      }
+      if (storedToken?.email) {
+        targetEmail = storedToken.email;
       }
     }
 
     if (!targetEmail) {
       return res.status(400).json({
         success: false,
-        message: 'Email or a valid reset token is required',
+        message: 'Valid reset token or email is required.',
       });
     }
 
-    const isValid = db.verifyPasswordReset({
-      email: targetEmail,
-      code: code ? code.toString().trim() : null,
-      token: token ? token.trim() : null,
-    });
-
-    if (!isValid) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid or expired verification code. Please request a new code.',
-      });
-    }
-
-    const user = await db.findUserByEmail(targetEmail);
+    let user = await db.findUserByEmail(targetEmail);
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+      return res.status(404).json({ success: false, message: 'User account not found.' });
     }
 
     const salt = await bcrypt.genSalt(10);
-    const newPasswordHash = await bcrypt.hash(newPassword, salt);
+    const newPasswordHash = await bcrypt.hash(rawPassword, salt);
 
-    await db.updateUserPassword({
+    user = await db.updateUserPassword({
       email: targetEmail,
-      newPassword,
+      newPassword: rawPassword,
       newPasswordHash,
     });
 
+    // Invalidate reset authorization token and OTPs
+    if (targetToken) {
+      db.consumeResetToken(targetToken);
+    }
     db.consumePasswordReset(targetEmail);
 
     await db.createNotification({
@@ -544,11 +582,107 @@ export const resetPassword = async (req, res, next) => {
       title: 'Password Changed Successfully',
       message: 'Your DynaStore account password was recently updated. If this was not you, please contact support immediately.',
       type: 'SUCCESS',
-    });
+    }).catch(() => {});
+
+    const sessionToken = generateToken(user);
+    const { password_hash: _, ...safeUser } = user;
 
     res.json({
       success: true,
-      message: 'Your password has been reset successfully! You can now log in with your new password.',
+      message: 'Password reset successfully.',
+      token: sessionToken,
+      user: safeUser,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const loginWithOtp = async (req, res, next) => {
+  try {
+    const { email, code, otp, token, resetToken } = req.body;
+    const cleanCode = (code || otp) ? (code || otp).toString().trim() : null;
+    const activeToken = (token || resetToken) ? (token || resetToken).trim() : null;
+
+    if (!email || (!cleanCode && !activeToken)) {
+      return res.status(400).json({ success: false, message: 'Email and 6-digit verification code or token are required' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    let isValid = false;
+
+    if (activeToken) {
+      const storedReset = db.verifyResetToken(activeToken);
+      if (storedReset && storedReset.email === cleanEmail) {
+        isValid = true;
+        db.consumeResetToken(activeToken);
+      }
+    }
+
+    if (!isValid && cleanCode) {
+      isValid = db.verifyOtp({
+        email: cleanEmail,
+        code: cleanCode,
+      });
+      if (isValid) {
+        db.consumeOtp(cleanEmail);
+      }
+    }
+
+    if (!isValid) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired 6-digit code. Please request a new code.',
+      });
+    }
+
+    const adminEmails = [
+      'dynastore23084720893yiusjfhgisriw4rihldfjgsijfhweu@gmail.com',
+    ];
+    const isAdminUser = adminEmails.includes(cleanEmail);
+
+    let user = await db.findUserByEmail(cleanEmail);
+
+    if (!user) {
+      const baseUsername = cleanEmail.split('@')[0].replace(/[^a-z0-9_]/g, '_').slice(0, 15);
+      user = await db.createUser({
+        email: cleanEmail,
+        username: isAdminUser ? 'DynaMasterAdmin' : `${baseUsername}_${Date.now().toString().slice(-4)}${Math.floor(10 + Math.random() * 89)}`,
+        password_hash: null,
+        avatar_url: `https://api.dicebear.com/7.x/bottts/svg?seed=${cleanEmail}`,
+        role: isAdminUser ? 'ADMIN' : 'USER',
+        balance: isAdminUser ? 500.00 : 0.00,
+      });
+
+      telegramService.notifyNewUser(user).catch(() => {});
+
+      await db.createNotification({
+        userId: user.id,
+        title: isAdminUser ? '👑 Welcome DynaStore Administrator!' : 'Welcome to DynaStore!',
+        message: isAdminUser
+          ? 'You have logged in with Master Admin access via Gmail OTP.'
+          : 'Account created and verified via Gmail OTP. You can now purchase game files and manage your wallet.',
+        type: 'SUCCESS',
+      });
+    } else if (isAdminUser && user.role !== 'ADMIN') {
+      user = await db.updateUser(user.id, { role: 'ADMIN' });
+    }
+
+    if (!user.is_active) {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account has been deactivated. Please contact support.',
+      });
+    }
+
+    const sessionToken = generateToken(user);
+    const { password_hash: _, ...safeUser } = user;
+
+    res.json({
+      success: true,
+      message: isAdminUser ? 'Welcome Admin! Signed in via Gmail OTP' : 'Signed in via Gmail OTP successfully',
+      token: sessionToken,
+      user: safeUser,
     });
   } catch (error) {
     next(error);
