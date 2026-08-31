@@ -501,7 +501,7 @@ setInterval(() => {
 
 export const createTelegramQrSession = (req, res) => {
   const sessionId = `tg_qr_${crypto.randomBytes(16).toString('hex')}`;
-  const deepLink = `https://t.me/DynaStoreAuthBot?start=login_${sessionId}`;
+  const deepLink = `https://t.me/Dynastorepc_bot?start=login_${sessionId}`;
   const webAuthUrl = `https://dynastore.site/login?tg_session=${sessionId}`;
 
   telegramQrSessions.set(sessionId, {
