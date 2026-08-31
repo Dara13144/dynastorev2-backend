@@ -487,4 +487,50 @@ test('E2E - Telegram QR Code Scan Login, Polling & Auto-Confirmation Flow', asyn
   assert.equal(meRes.data.user.id, confirmedStatus.data.user.id);
 });
 
+test('E2E - Cross-Device QR Code Authorization & Session Transfer', async () => {
+  // 1. Authenticate primary device (Phone / Admin)
+  const loginRes = await axios.post(`${BASE_URL}/auth/login`, {
+    email: 'dynastore23084720893yiusjfhgisriw4rihldfjgsijfhweu@gmail.com',
+    password: 'dynastoeoroqeiyrp9wIERYIUqwehyrIU',
+  });
+  const phoneToken = loginRes.data.token;
+
+  // 2. PC creates new device QR session
+  const devQrRes = await axios.post(`${BASE_URL}/auth/device-qr/create`);
+  assert.equal(devQrRes.status, 200);
+  assert.ok(devQrRes.data.sessionId);
+  assert.ok(devQrRes.data.qrUrl);
+
+  const sessionId = devQrRes.data.sessionId;
+
+  // 3. PC checks initial status (PENDING)
+  const initialStatus = await axios.get(`${BASE_URL}/auth/device-qr/status/${sessionId}`);
+  assert.equal(initialStatus.status, 200);
+  assert.equal(initialStatus.data.status, 'PENDING');
+
+  // 4. Phone authorizes the PC session
+  const authRes = await axios.post(
+    `${BASE_URL}/auth/device-qr/authorize`,
+    { sessionId },
+    { headers: { Authorization: `Bearer ${phoneToken}` } }
+  );
+  assert.equal(authRes.status, 200);
+  assert.ok(authRes.data.success);
+
+  // 5. PC polls approved status and receives new valid token
+  const approvedStatus = await axios.get(`${BASE_URL}/auth/device-qr/status/${sessionId}`);
+  assert.equal(approvedStatus.status, 200);
+  assert.equal(approvedStatus.data.status, 'APPROVED');
+  assert.ok(approvedStatus.data.token, 'Must return JWT token for new authorized PC');
+  assert.equal(approvedStatus.data.user.role, 'ADMIN');
+
+  // 6. Test PC authenticated access
+  const pcMe = await axios.get(`${BASE_URL}/auth/me`, {
+    headers: { Authorization: `Bearer ${approvedStatus.data.token}` },
+  });
+  assert.equal(pcMe.status, 200);
+  assert.equal(pcMe.data.user.role, 'ADMIN');
+});
+
+
 

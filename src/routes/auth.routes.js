@@ -16,6 +16,9 @@ import {
   createTelegramQrSession,
   getTelegramQrStatus,
   confirmTelegramQrSession,
+  createDeviceQrSession,
+  getDeviceQrStatus,
+  authorizeDeviceQrSession,
 } from '../controllers/auth.controller.js';
 import { requireAuth } from '../middleware/auth.middleware.js';
 
@@ -28,6 +31,9 @@ router.post('/telegram', telegramLogin);
 router.post('/telegram/qr/create', createTelegramQrSession);
 router.get('/telegram/qr/status/:sessionId', getTelegramQrStatus);
 router.post('/telegram/qr/confirm', confirmTelegramQrSession);
+router.post('/device-qr/create', createDeviceQrSession);
+router.get('/device-qr/status/:sessionId', getDeviceQrStatus);
+router.post('/device-qr/authorize', requireAuth, authorizeDeviceQrSession);
 router.post('/send-otp', sendOtp);
 router.post('/resend-otp', resendOtp);
 router.post('/verify-otp', verifyOtp);

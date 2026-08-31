@@ -606,6 +606,113 @@ export const confirmTelegramQrSession = async (req, res, next) => {
   }
 };
 
+// Cross-Device QR Login Sessions Map
+const deviceQrSessions = new Map();
+
+// Periodic cleanup of expired Device QR sessions
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, session] of deviceQrSessions.entries()) {
+    if (session.expiresAt < now) {
+      deviceQrSessions.delete(id);
+    }
+  }
+}, 60000);
+
+export const createDeviceQrSession = (req, res) => {
+  const sessionId = `dev_qr_${crypto.randomBytes(16).toString('hex')}`;
+  const qrUrl = `https://dynastore.site/scan-device?session=${sessionId}`;
+
+  deviceQrSessions.set(sessionId, {
+    sessionId,
+    status: 'PENDING',
+    createdAt: Date.now(),
+    expiresAt: Date.now() + 3 * 60 * 1000, // 3 minutes
+    token: null,
+    user: null,
+  });
+
+  res.json({
+    success: true,
+    sessionId,
+    qrUrl,
+    expiresIn: 180,
+  });
+};
+
+export const getDeviceQrStatus = (req, res) => {
+  const { sessionId } = req.params;
+  const session = deviceQrSessions.get(sessionId);
+
+  if (!session) {
+    return res.status(404).json({ success: false, status: 'EXPIRED', message: 'Device QR session not found or expired.' });
+  }
+
+  if (session.expiresAt < Date.now()) {
+    deviceQrSessions.delete(sessionId);
+    return res.status(410).json({ success: false, status: 'EXPIRED', message: 'Device QR session expired.' });
+  }
+
+  if (session.status === 'APPROVED') {
+    return res.json({
+      success: true,
+      status: 'APPROVED',
+      token: session.token,
+      user: session.user,
+    });
+  }
+
+  res.json({
+    success: true,
+    status: 'PENDING',
+  });
+};
+
+export const authorizeDeviceQrSession = async (req, res, next) => {
+  try {
+    const { sessionId } = req.body;
+    const session = deviceQrSessions.get(sessionId);
+
+    if (!session) {
+      return res.status(404).json({ success: false, message: 'Device QR session not found or expired.' });
+    }
+
+    if (session.expiresAt < Date.now()) {
+      deviceQrSessions.delete(sessionId);
+      return res.status(410).json({ success: false, message: 'Device QR code expired. Please refresh the QR code on your computer.' });
+    }
+
+    const authUser = req.user;
+    if (!authUser) {
+      return res.status(401).json({ success: false, message: 'You must be logged in on this phone/device to authorize QR login.' });
+    }
+
+    // Generate authenticated JWT token for the target device
+    const token = generateToken(authUser);
+    const { password_hash: _, ...safeUser } = authUser;
+
+    session.status = 'APPROVED';
+    session.token = token;
+    session.user = safeUser;
+
+    // Send security notification to user
+    await db.createNotification({
+      userId: authUser.id,
+      title: 'New Device Authorized!',
+      message: 'You have successfully logged in to DynaStore on another computer / device using QR code scan.',
+      type: 'SUCCESS',
+    }).catch(() => {});
+
+    res.json({
+      success: true,
+      message: 'New device approved and logged in successfully!',
+      targetSessionId: sessionId,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const logout = (req, res) => {
   res.json({
     success: true,
