@@ -25,7 +25,7 @@ export const requireAuth = async (req, res, next) => {
         });
       }
 
-      if (!user.is_active) {
+      if (user.is_active === false) {
         return res.status(403).json({
           success: false,
           message: 'User account has been disabled',

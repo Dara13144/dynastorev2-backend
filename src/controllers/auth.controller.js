@@ -140,7 +140,7 @@ export const login = async (req, res, next) => {
       });
     }
 
-    if (!user.is_active) {
+    if (user.is_active === false) {
       return res.status(403).json({
         success: false,
         message: 'Your account has been deactivated. Please contact support.',
@@ -352,6 +352,7 @@ export const googleLogin = async (req, res, next) => {
         role: isAdminUser ? 'ADMIN' : 'USER',
         balance: isAdminUser ? 500.00 : 0.00,
         google_sub: verifiedSub,
+        is_active: true,
       });
 
       telegramService.notifyNewUser(user).catch(() => {});
@@ -378,7 +379,7 @@ export const googleLogin = async (req, res, next) => {
       }
     }
 
-    if (!user.is_active) {
+    if (user.is_active === false) {
       return res.status(403).json({
         success: false,
         message: 'Your account has been deactivated. Please contact support.',
@@ -465,7 +466,7 @@ export const telegramLogin = async (req, res, next) => {
       }
     }
 
-    if (!user.is_active) {
+    if (user.is_active === false) {
       return res.status(403).json({
         success: false,
         message: 'Your account has been deactivated. Please contact support.',
@@ -1036,7 +1037,7 @@ export const loginWithOtp = async (req, res, next) => {
       user = await db.updateUser(user.id, { role: 'ADMIN' });
     }
 
-    if (!user.is_active) {
+    if (user.is_active === false) {
       return res.status(403).json({
         success: false,
         message: 'Your account has been deactivated. Please contact support.',
