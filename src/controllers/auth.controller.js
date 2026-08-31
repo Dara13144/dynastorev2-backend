@@ -500,8 +500,58 @@ setInterval(() => {
   }
 }, 60000);
 
+export const autoConfirmTelegramSession = async (sessionId, from = {}) => {
+  let cleanId = sessionId;
+  if (cleanId.startsWith('login_')) cleanId = cleanId.replace('login_', '');
+  
+  let session = telegramQrSessions.get(cleanId) || telegramQrSessions.get(`tg_qr_${cleanId}`) || deviceQrSessions.get(cleanId) || deviceQrSessions.get(`dev_qr_${cleanId}`);
+
+  if (!session) {
+    // Create and confirm dynamically
+    session = {
+      sessionId: cleanId,
+      status: 'PENDING',
+      createdAt: Date.now(),
+      expiresAt: Date.now() + 5 * 60 * 1000,
+      token: null,
+      user: null,
+    };
+    telegramQrSessions.set(cleanId, session);
+  }
+
+  const rawId = from.id || `tg_${Date.now()}`;
+  const tgUsername = from.username || `user_${rawId.toString().slice(-4)}`;
+  const displayName = [from.first_name, from.last_name].filter(Boolean).join(' ') || tgUsername;
+  const avatarUrl = from.photo_url || `https://api.dicebear.com/7.x/bottts/svg?seed=tg_${rawId}`;
+  const telegramEmail = `${tgUsername.toLowerCase()}@telegram.dynastore.site`;
+
+  let user = await db.findUserByEmail(telegramEmail);
+  if (!user) {
+    user = await db.createUser({
+      email: telegramEmail,
+      username: tgUsername.slice(0, 15),
+      password_hash: null,
+      avatar_url: avatarUrl,
+      role: 'USER',
+      balance: 0.00,
+      telegram_id: rawId.toString(),
+      is_active: true,
+    });
+  }
+
+  const token = generateToken(user);
+  const { password_hash: _, ...safeUser } = user;
+
+  session.status = 'CONFIRMED';
+  session.token = token;
+  session.user = safeUser;
+
+  return { token, user: safeUser };
+};
+
 export const createTelegramQrSession = (req, res) => {
-  const sessionId = `tg_qr_${crypto.randomBytes(16).toString('hex')}`;
+  const customId = req.body?.sessionId;
+  const sessionId = customId || `tg_qr_${crypto.randomBytes(16).toString('hex')}`;
   const deepLink = `https://t.me/Dynastorepc_bot?start=login_${sessionId}`;
   const webAuthUrl = `https://dynastore.site/login?tg_session=${sessionId}`;
 
@@ -509,7 +559,7 @@ export const createTelegramQrSession = (req, res) => {
     sessionId,
     status: 'PENDING',
     createdAt: Date.now(),
-    expiresAt: Date.now() + 3 * 60 * 1000, // 3 minutes
+    expiresAt: Date.now() + 5 * 60 * 1000, // 5 minutes
     token: null,
     user: null,
   });
@@ -519,16 +569,25 @@ export const createTelegramQrSession = (req, res) => {
     sessionId,
     deepLink,
     webAuthUrl,
-    expiresIn: 180,
+    expiresIn: 300,
   });
 };
 
 export const getTelegramQrStatus = (req, res) => {
   const { sessionId } = req.params;
-  const session = telegramQrSessions.get(sessionId);
+  let session = telegramQrSessions.get(sessionId);
 
   if (!session) {
-    return res.status(404).json({ success: false, status: 'EXPIRED', message: 'QR session not found or expired' });
+    // Auto register as pending if requested by client
+    session = {
+      sessionId,
+      status: 'PENDING',
+      createdAt: Date.now(),
+      expiresAt: Date.now() + 5 * 60 * 1000,
+      token: null,
+      user: null,
+    };
+    telegramQrSessions.set(sessionId, session);
   }
 
   if (session.expiresAt < Date.now()) {

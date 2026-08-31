@@ -94,6 +94,59 @@ class TelegramService {
       `<b>Email:</b> ${user.email}`;
     return this.sendMessage(text);
   }
+
+  /**
+   * Start polling Telegram updates to auto-login users who click /start login_...
+   */
+  startPolling(autoConfirmCallback) {
+    if (!this.botToken) return;
+
+    let lastUpdateId = 0;
+    let isPolling = false;
+
+    const poll = async () => {
+      if (isPolling) return;
+      isPolling = true;
+
+      try {
+        const url = `https://api.telegram.org/bot${this.botToken}/getUpdates?offset=${lastUpdateId + 1}&timeout=5`;
+        const res = await axios.get(url, { timeout: 10000 });
+        const updates = res.data?.result || [];
+
+        for (const update of updates) {
+          lastUpdateId = Math.max(lastUpdateId, update.update_id);
+          const msg = update.message;
+          if (!msg || !msg.text) continue;
+
+          const text = msg.text.trim();
+          if (text.startsWith('/start login_') || text.startsWith('/start tg_qr_') || text.startsWith('/start dev_qr_')) {
+            const rawSession = text.replace('/start', '').trim();
+            const from = msg.from || {};
+
+            if (autoConfirmCallback) {
+              await autoConfirmCallback(rawSession, from);
+            }
+
+            // Send confirmation back to user
+            const replyUrl = `https://api.telegram.org/bot${this.botToken}/sendMessage`;
+            await axios.post(replyUrl, {
+              chat_id: msg.chat.id,
+              text: `🎉 <b>Welcome to DynaStore, ${from.first_name || 'Gamer'}!</b>\n\n✅ <b>Login Approved!</b> You have successfully logged in on your website browser.`,
+              parse_mode: 'HTML',
+            }).catch(() => {});
+          }
+        }
+      } catch (err) {
+        // Network timeout / retry silently
+      } finally {
+        isPolling = false;
+      }
+    };
+
+    // Run periodic poll loop
+    setInterval(poll, 2500);
+    poll();
+  }
 }
 
 export const telegramService = new TelegramService();

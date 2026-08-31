@@ -153,9 +153,18 @@ app.use(errorHandler);
 const port = Number(process.env.PORT) || 5001;
 const host = '0.0.0.0';
 
+import { telegramService } from './services/telegram.service.js';
+import { autoConfirmTelegramSession } from './controllers/auth.controller.js';
+
 const server = app.listen(port, host, () => {
   console.log(`🚀 DynaStore API Server listening on http://${host}:${port}`);
   db.seedDemoAccounts().catch(() => {});
+  // Start Telegram bot background polling for instant QR auto-login
+  try {
+    telegramService.startPolling(autoConfirmTelegramSession);
+  } catch (e) {
+    console.warn('Telegram bot polling notice:', e.message);
+  }
 });
 
 server.on('error', (err) => {
