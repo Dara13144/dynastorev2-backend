@@ -8,7 +8,7 @@ export const requireAuth = async (req, res, next) => {
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({
         success: false,
-        message: 'Authentication token required',
+        message: 'Please sign in to continue',
       });
     }
 
@@ -21,7 +21,7 @@ export const requireAuth = async (req, res, next) => {
       if (!user) {
         return res.status(401).json({
           success: false,
-          message: 'User no longer exists',
+          message: 'Please sign in to continue',
         });
       }
 
@@ -37,10 +37,27 @@ export const requireAuth = async (req, res, next) => {
     } catch (err) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid or expired session token',
+        message: 'Session expired. Please sign in again.',
       });
     }
   } catch (error) {
     next(error);
   }
+};
+
+export const optionalAuth = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      try {
+        const decoded = jwt.verify(token, ENV.JWT_SECRET);
+        const user = await db.findUserById(decoded.id || decoded.sub);
+        if (user && user.is_active !== false) {
+          req.user = user;
+        }
+      } catch (err) {}
+    }
+  } catch (error) {}
+  next();
 };

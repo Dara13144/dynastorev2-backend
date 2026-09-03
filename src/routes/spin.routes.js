@@ -1,13 +1,13 @@
-﻿import { Router } from 'express';
+import { Router } from 'express';
 import { getSpinConfig, doSpin } from '../controllers/spin.controller.js';
-import { requireAuth } from '../middleware/auth.middleware.js';
+import { optionalAuth } from '../middleware/auth.middleware.js';
 
 const router = Router();
 
 // Public: get wheel segment config
 router.get('/config', getSpinConfig);
 
-// Auth required: perform a spin
-router.post('/', requireAuth, doSpin);
+// Spin route: supports authenticated user or verified paid orderId
+router.post('/', optionalAuth, doSpin);
 
 export default router;

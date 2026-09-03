@@ -9,9 +9,20 @@ export async function getSpinConfig(req, res, next) {
 
 export async function doSpin(req, res, next) {
   try {
-    const userId = req.user.id;
     const { orderId } = req.body;
     if (!orderId) return res.status(400).json({ success: false, message: 'orderId is required' });
+
+    let userId = req.user?.id;
+    if (!userId) {
+      const order = await db.getOrderById(orderId);
+      if (order && order.user_id) {
+        userId = order.user_id;
+      }
+    }
+
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Please sign in to spin the prize wheel' });
+    }
 
     const alreadySpun = await db.hasSpinForOrder(orderId);
     if (alreadySpun) return res.status(409).json({ success: false, message: 'You have already used your spin for this order' });
