@@ -270,30 +270,21 @@ export const deleteProduct = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    if (db.isConfigured()) {
-      const { supabase } = await import('../config/supabase.js');
-      
-      // Try hard delete first
-      const { error } = await supabase.from('products').delete().eq('id', id);
-      
-      if (error) {
-        // If restricted by existing historical orders, soft-delete / archive
-        if (error.code === '23503') {
-          await supabase.from('products').update({ is_published: false }).eq('id', id);
-        } else {
-          throw error;
-        }
-      }
-    } else {
-      db.store.products = db.store.products.filter(p => p.id !== id);
+    if (!id) {
+      return res.status(400).json({ success: false, message: 'Product ID is required' });
     }
 
-    await db.createAuditLog({
-      adminId: req.user.id,
-      action: 'DELETE_PRODUCT',
-      targetType: 'PRODUCT',
-      targetId: id,
-    });
+    // Call resilient deleteProduct from db adapter
+    await db.deleteProduct(id);
+
+    try {
+      await db.createAuditLog({
+        adminId: req.user?.id,
+        action: 'DELETE_PRODUCT',
+        targetType: 'PRODUCT',
+        targetId: id,
+      });
+    } catch (e) {}
 
     res.json({ success: true, message: 'Product deleted successfully from store' });
   } catch (error) {

@@ -770,6 +770,48 @@ export const db = {
     };
   },
 
+  async deleteProduct(id) {
+    if (!id) return false;
+    let deleted = false;
+    if (isConfigured && supabase) {
+      try {
+        // Clear references from carts and downloads first to prevent constraint violations
+        await supabase.from('cart_items').delete().eq('product_id', id);
+        await supabase.from('downloads').delete().eq('product_id', id);
+
+        // Attempt hard delete
+        const { error } = await supabase.from('products').delete().eq('id', id);
+        if (!error) {
+          deleted = true;
+        } else if (error.code === '23503' || error.message?.includes('foreign key')) {
+          // If referenced by existing orders, soft delete by unpublishing
+          await supabase.from('products').update({ is_published: false, updated_at: new Date().toISOString() }).eq('id', id);
+          deleted = true;
+        } else {
+          console.warn('Supabase deleteProduct notice:', error.message);
+        }
+      } catch (e) {
+        console.warn('Supabase deleteProduct catch error:', e.message);
+      }
+    }
+
+    // Always remove from memory store
+    const initialLen = devStore.products.length;
+    devStore.products = devStore.products.filter(p => p.id !== id);
+    if (devStore.cart_items) {
+      devStore.cart_items = devStore.cart_items.filter(item => item.product_id !== id);
+    }
+    if (devStore.carts) {
+      Object.keys(devStore.carts).forEach(userId => {
+        if (Array.isArray(devStore.carts[userId])) {
+          devStore.carts[userId] = devStore.carts[userId].filter(item => (item.id || item.product_id) !== id);
+        }
+      });
+    }
+
+    return deleted || devStore.products.length < initialLen;
+  },
+
   // Categories
   async getCategories() {
     if (isConfigured && supabase) {

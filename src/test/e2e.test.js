@@ -446,6 +446,33 @@ test('E2E - Admin Image Upload & Product Creation with Images', async () => {
   assert.equal(prodRes.data.product.cover_image, uploadRes.data.publicUrl);
 });
 
+test('E2E - Admin Delete Game Product', async () => {
+  const adminLogin = await axios.post(`${BASE_URL}/auth/login`, {
+    email: TEST_ADMIN_EMAIL,
+    password: TEST_ADMIN_PASSWORD,
+  });
+  const adminToken = adminLogin.data.token;
+
+  const createRes = await axios.post(
+    `${BASE_URL}/admin/products`,
+    {
+      title: `Game To Delete ${Date.now()}`,
+      price: 15.99,
+      is_published: true,
+    },
+    { headers: { Authorization: `Bearer ${adminToken}` } }
+  );
+  assert.equal(createRes.status, 201);
+  const targetId = createRes.data.product.id;
+
+  const delRes = await axios.delete(`${BASE_URL}/admin/products/${targetId}`, {
+    headers: { Authorization: `Bearer ${adminToken}` },
+  });
+  assert.equal(delRes.status, 200);
+  assert.ok(delRes.data.success);
+});
+
+
 test('E2E - Telegram Login & User Account Provisioning', async () => {
   const tgUser = {
     id: 987654321,
