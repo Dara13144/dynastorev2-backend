@@ -775,9 +775,10 @@ export const db = {
     let deleted = false;
     if (isConfigured && supabase) {
       try {
-        // Clear references from carts and downloads first to prevent constraint violations
+        // Clear references from carts, downloads, and product_images first
         await supabase.from('cart_items').delete().eq('product_id', id);
         await supabase.from('downloads').delete().eq('product_id', id);
+        await supabase.from('product_images').delete().eq('product_id', id);
 
         // Attempt hard delete
         const { error } = await supabase.from('products').delete().eq('id', id);

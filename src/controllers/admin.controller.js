@@ -136,8 +136,15 @@ export const createProduct = async (req, res, next) => {
     if (db.isConfigured()) {
       try {
         const { supabase } = await import('../config/supabase.js');
-        const { data, error } = await supabase.from('products').insert(newProduct).select().single();
+        let cleanCategoryId = newProduct.category_id;
+        if (cleanCategoryId) {
+          const { data: catExists } = await supabase.from('categories').select('id').eq('id', cleanCategoryId).maybeSingle();
+          if (!catExists) cleanCategoryId = null;
+        }
+        const insertPayload = { ...newProduct, category_id: cleanCategoryId };
+        const { data, error } = await supabase.from('products').insert(insertPayload).select().single();
         if (!error && data) {
+          db.store.products.unshift({ ...newProduct, ...data });
           await db.createAuditLog({
             adminId: req.user.id,
             action: 'CREATE_PRODUCT',
@@ -152,7 +159,7 @@ export const createProduct = async (req, res, next) => {
       }
     }
 
-    db.store.products.push(newProduct);
+    db.store.products.unshift(newProduct);
     await db.createAuditLog({
       adminId: req.user.id,
       action: 'CREATE_PRODUCT',
@@ -225,22 +232,34 @@ export const updateProduct = async (req, res, next) => {
     }
 
     if (db.isConfigured()) {
-      const { supabase } = await import('../config/supabase.js');
-      const { data, error } = await supabase
-        .from('products')
-        .update({ ...updates, updated_at: new Date().toISOString() })
-        .eq('id', id)
-        .select()
-        .single();
-      if (error) throw error;
-      await db.createAuditLog({
-        adminId: req.user.id,
-        action: 'UPDATE_PRODUCT',
-        targetType: 'PRODUCT',
-        targetId: id,
-        metadata: { title: data.title, price: data.price },
-      });
-      return res.json({ success: true, product: data });
+      try {
+        const { supabase } = await import('../config/supabase.js');
+        let updatePayload = { ...updates, updated_at: new Date().toISOString() };
+        if (updatePayload.category_id) {
+          const { data: catExists } = await supabase.from('categories').select('id').eq('id', updatePayload.category_id).maybeSingle();
+          if (!catExists) updatePayload.category_id = null;
+        }
+        const { data, error } = await supabase
+          .from('products')
+          .update(updatePayload)
+          .eq('id', id)
+          .select()
+          .maybeSingle();
+        if (!error && data) {
+          const idx = db.store.products.findIndex(p => p.id === id);
+          if (idx !== -1) db.store.products[idx] = { ...db.store.products[idx], ...data };
+          await db.createAuditLog({
+            adminId: req.user.id,
+            action: 'UPDATE_PRODUCT',
+            targetType: 'PRODUCT',
+            targetId: id,
+            metadata: { title: data.title, price: data.price },
+          });
+          return res.json({ success: true, product: data });
+        }
+      } catch (e) {
+        console.warn('Supabase updateProduct notice:', e.message);
+      }
     }
 
     const idx = db.store.products.findIndex(p => p.id === id);
