@@ -107,18 +107,12 @@ export const deposit = async (req, res, next) => {
       created_at: new Date().toISOString(),
     };
 
+    db.store.payments.push(paymentRecord);
     if (db.isConfigured()) {
       try {
         const { supabase } = await import('../config/supabase.js');
-        const { error } = await supabase.from('payments').insert(paymentRecord);
-        if (error) {
-          db.store.payments.push(paymentRecord);
-        }
-      } catch (e) {
-        db.store.payments.push(paymentRecord);
-      }
-    } else {
-      db.store.payments.push(paymentRecord);
+        await supabase.from('payments').insert(paymentRecord);
+      } catch (e) {}
     }
 
     res.status(201).json({
