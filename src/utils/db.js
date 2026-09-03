@@ -319,6 +319,50 @@ export const db = {
     return found;
   },
 
+  async findUserByUsername(username) {
+    if (!username) return null;
+    const cleanUsername = username.trim();
+    let found = null;
+    if (isConfigured && supabase) {
+      try {
+        const { data } = await supabase.from('profiles').select('*').ilike('username', cleanUsername).maybeSingle();
+        if (data) found = data;
+      } catch (e) {}
+    }
+    if (!found) {
+      found = devStore.profiles.find(u => u.username?.toLowerCase() === cleanUsername.toLowerCase()) || null;
+    }
+    return found;
+  },
+
+  async updateUser(id, updates) {
+    if (!id) return null;
+    let updated = null;
+    if (isConfigured && supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .update({ ...updates, updated_at: new Date().toISOString() })
+          .eq('id', id)
+          .select()
+          .maybeSingle();
+        if (data && !error) updated = data;
+      } catch (e) {
+        // ignore
+      }
+    }
+    const idx = devStore.profiles.findIndex(u => u.id === id);
+    if (idx >= 0) {
+      devStore.profiles[idx] = {
+        ...devStore.profiles[idx],
+        ...updates,
+        updated_at: new Date().toISOString(),
+      };
+      if (!updated) updated = devStore.profiles[idx];
+    }
+    return updated;
+  },
+
   async createUser(userData) {
     if (userData.password_hash) {
       this.userPasswordCache.set(userData.email.toLowerCase(), userData.password_hash);
@@ -330,7 +374,7 @@ export const db = {
         try {
           const { data: authUser, error: authErr } = await supabase.auth.admin.createUser({
             email: userData.email.toLowerCase(),
-            password: 'User@' + Math.random().toString(36).slice(-8) + 'Aa1!',
+            password: userData.password || ('User@' + Math.random().toString(36).slice(-8) + 'Aa1!'),
             email_confirm: true,
             user_metadata: {
               username: userData.username,

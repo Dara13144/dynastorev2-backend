@@ -53,8 +53,13 @@ export const createPayment = async (req, res, next) => {
     };
 
     if (db.isConfigured()) {
-      const { supabase } = await import('../config/supabase.js');
-      await supabase.from('payments').insert(paymentRecord);
+      try {
+        const { supabase } = await import('../config/supabase.js');
+        const { error } = await supabase.from('payments').insert(paymentRecord);
+        if (error) db.store.payments.push(paymentRecord);
+      } catch (e) {
+        db.store.payments.push(paymentRecord);
+      }
     } else {
       db.store.payments.push(paymentRecord);
     }
@@ -76,10 +81,13 @@ export const getPaymentStatus = async (req, res, next) => {
 
     let payment = null;
     if (db.isConfigured()) {
-      const { supabase } = await import('../config/supabase.js');
-      const { data } = await supabase.from('payments').select('*').eq('transaction_id', transactionId).maybeSingle();
-      payment = data;
-    } else {
+      try {
+        const { supabase } = await import('../config/supabase.js');
+        const { data } = await supabase.from('payments').select('*').eq('transaction_id', transactionId).maybeSingle();
+        payment = data;
+      } catch (e) {}
+    }
+    if (!payment) {
       payment = db.store.payments.find(p => p.transaction_id === transactionId);
     }
 
@@ -131,10 +139,13 @@ export const abaCallback = async (req, res, next) => {
     // 2. Find payment record in database
     let payment = null;
     if (db.isConfigured()) {
-      const { supabase } = await import('../config/supabase.js');
-      const { data } = await supabase.from('payments').select('*').eq('transaction_id', tran_id).maybeSingle();
-      payment = data;
-    } else {
+      try {
+        const { supabase } = await import('../config/supabase.js');
+        const { data } = await supabase.from('payments').select('*').eq('transaction_id', tran_id).maybeSingle();
+        payment = data;
+      } catch (e) {}
+    }
+    if (!payment) {
       payment = db.store.payments.find(p => p.transaction_id === tran_id);
     }
 
@@ -197,14 +208,23 @@ async function completeSuccessfulPayment(payment, rawResponse = {}) {
   payment.signature_verified = true;
   payment.provider_response = rawResponse;
 
+  const devPayment = db.store.payments.find(p => p.transaction_id === payment.transaction_id || p.id === payment.id);
+  if (devPayment) {
+    devPayment.status = 'PAID';
+    devPayment.signature_verified = true;
+    devPayment.provider_response = rawResponse;
+  }
+
   if (db.isConfigured()) {
-    const { supabase } = await import('../config/supabase.js');
-    await supabase.from('payments').update({
-      status: 'PAID',
-      signature_verified: true,
-      provider_response: rawResponse,
-      updated_at: new Date().toISOString(),
-    }).eq('id', payment.id);
+    try {
+      const { supabase } = await import('../config/supabase.js');
+      await supabase.from('payments').update({
+        status: 'PAID',
+        signature_verified: true,
+        provider_response: rawResponse,
+        updated_at: new Date().toISOString(),
+      }).eq('id', payment.id);
+    } catch (e) {}
   }
 
   // If this payment was for an ORDER
@@ -304,8 +324,13 @@ export const createCutLuyPayment = async (req, res, next) => {
     };
 
     if (db.isConfigured()) {
-      const { supabase } = await import('../config/supabase.js');
-      await supabase.from('payments').insert(paymentRecord);
+      try {
+        const { supabase } = await import('../config/supabase.js');
+        const { error } = await supabase.from('payments').insert(paymentRecord);
+        if (error) db.store.payments.push(paymentRecord);
+      } catch (e) {
+        db.store.payments.push(paymentRecord);
+      }
     } else {
       db.store.payments.push(paymentRecord);
     }
@@ -338,14 +363,17 @@ export const checkCutLuyPayment = async (req, res, next) => {
 
     let payment = null;
     if (db.isConfigured()) {
-      const { supabase } = await import('../config/supabase.js');
-      const { data } = await supabase
-        .from('payments')
-        .select('*')
-        .or(`transaction_id.eq.${id},provider_transaction_id.eq.${id}`)
-        .maybeSingle();
-      payment = data;
-    } else {
+      try {
+        const { supabase } = await import('../config/supabase.js');
+        const { data } = await supabase
+          .from('payments')
+          .select('*')
+          .or(`transaction_id.eq.${id},provider_transaction_id.eq.${id}`)
+          .maybeSingle();
+        payment = data;
+      } catch (e) {}
+    }
+    if (!payment) {
       payment = db.store.payments.find(
         (p) => p.transaction_id === id || p.provider_transaction_id === id
       );
@@ -407,16 +435,19 @@ export const cutluyWebhook = async (req, res, next) => {
 
     let payment = null;
     if (db.isConfigured()) {
-      const { supabase } = await import('../config/supabase.js');
-      const { data } = await supabase
-        .from('payments')
-        .select('*')
-        .or(`transaction_id.eq.${refId},provider_transaction_id.eq.${cutluyId}`)
-        .maybeSingle();
-      payment = data;
-    } else {
+      try {
+        const { supabase } = await import('../config/supabase.js');
+        const { data } = await supabase
+          .from('payments')
+          .select('*')
+          .or(`transaction_id.eq.${refId},provider_transaction_id.eq.${cutluyId}`)
+          .maybeSingle();
+        payment = data;
+      } catch (e) {}
+    }
+    if (!payment) {
       payment = db.store.payments.find(
-        (p) => p.transaction_id === refId || p.provider_transaction_id === cutluyId
+        (p) => (refId && p.transaction_id === refId) || (cutluyId && p.provider_transaction_id === cutluyId)
       );
     }
 

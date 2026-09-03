@@ -7,9 +7,10 @@ export const ENV = {
   FRONTEND_URL: process.env.FRONTEND_URL || 'https://dynastorev2-frontend.vercel.app',
 
   // Supabase
-  SUPABASE_URL: process.env.SUPABASE_URL || 'https://zuhbtivatfaxxbuilltj.supabase.co',
-  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp1aGJ0aXZhdGZheHhidWlsbHRqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Nzk3OTA0OSwiZXhwIjoyMTAzNTU1MDQ5fQ.JK3FeSbQQH95D8BgdGO_vSCk4MJF0FdlsCWevUVv-IE',
-  SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp1aGJ0aXZhdGZheHhidWlsbHRqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc5NzkwNDksImV4cCI6MjEwMzU1NTA0OX0.WcnHZLuWMpZYj5PReyiMgvwSx46DRAlvl99o0SmQtAk',
+  SUPABASE_URL: process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://zuhbtivatfaxxbuilltj.supabase.co',
+  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '',
+  SUPABASE_ANON_KEY: process.env.SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY || '',
+  SUPABASE_JWKS_URL: process.env.SUPABASE_JWKS_URL || 'https://zuhbtivatfaxxbuilltj.supabase.co/auth/v1/.well-known/jwks.json',
 
   // JWT
   JWT_SECRET: process.env.JWT_SECRET || 'dynastore_dev_secret_jwt_key_2026_secure_tokens',

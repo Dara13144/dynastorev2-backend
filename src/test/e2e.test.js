@@ -17,16 +17,17 @@ test('E2E - Health Check', async () => {
 });
 
 test('E2E - Test Suite Account Setup & Registration', async () => {
+  const runSuffix = Date.now().toString().slice(-5);
   const gamerRes = await axios.post(`${BASE_URL}/auth/register`, {
     email: TEST_GAMER_EMAIL,
-    username: 'TestSuiteGamer',
+    username: `Gamer_${runSuffix}`,
     password: TEST_GAMER_PASSWORD,
   });
   assert.equal(gamerRes.status, 201);
 
   const adminRes = await axios.post(`${BASE_URL}/auth/register`, {
     email: TEST_ADMIN_EMAIL,
-    username: 'TestSuiteAdmin',
+    username: `Admin_${runSuffix}`,
     password: TEST_ADMIN_PASSWORD,
   });
   assert.equal(adminRes.status, 201);
