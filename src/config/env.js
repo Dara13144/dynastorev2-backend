@@ -58,4 +58,11 @@ export const ENV = {
     PASS: process.env.SMTP_PASS || process.env.EMAIL_PASS || process.env.GMAIL_PASS || process.env.GMAIL_APP_PASSWORD || '',
     FROM: process.env.SMTP_FROM || process.env.EMAIL_FROM || 'DynaStore Security <no-reply@dynastore.com>',
   },
+
+  // Admin emails configured via environment
+  ADMIN_EMAILS: (process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL || '')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean),
 };
+

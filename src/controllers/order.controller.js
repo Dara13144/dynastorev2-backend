@@ -1,13 +1,34 @@
 import crypto from 'crypto';
-import { db } from '../utils/db.js';
+import { db, supabase } from '../utils/db.js';
 import { abaPaywayService } from '../services/abaPayway.service.js';
 import { cutluyService } from '../services/cutluy.service.js';
 import { telegramService } from '../services/telegram.service.js';
 
+export const validateCoupon = async (req, res, next) => {
+  try {
+    const { code, cartTotal } = req.body;
+    if (!code) {
+      return res.status(400).json({ success: false, message: 'Please provide a discount code' });
+    }
+    const result = await db.validateCoupon(code, cartTotal);
+    if (!result.valid) {
+      return res.status(400).json({ success: false, message: result.message });
+    }
+    return res.json({
+      success: true,
+      valid: true,
+      coupon: result.coupon,
+      message: `Promo code ${result.coupon.code} applied! Saved $${result.coupon.discountAmount.toFixed(2)}`,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const createOrder = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const { productIds, paymentMethod } = req.body;
+    const { productIds, paymentMethod, couponCode } = req.body;
 
     if (!productIds || !Array.isArray(productIds) || productIds.length === 0) {
       return res.status(400).json({ success: false, message: 'At least one product is required to create an order' });
@@ -44,7 +65,21 @@ export const createOrder = async (req, res, next) => {
       validatedProducts.push(product);
     }
 
-    const totalAmount = Number(calculatedTotal.toFixed(2));
+    // Process discount code if provided
+    let appliedCoupon = null;
+    let discountAmount = 0;
+    if (couponCode) {
+      const couponCheck = await db.validateCoupon(couponCode, calculatedTotal);
+      if (couponCheck.valid) {
+        appliedCoupon = couponCheck.coupon;
+        discountAmount = couponCheck.coupon.discountAmount;
+      } else {
+        return res.status(400).json({ success: false, message: couponCheck.message });
+      }
+    }
+
+    const subtotal = Number(calculatedTotal.toFixed(2));
+    const totalAmount = Number(Math.max(0, subtotal - discountAmount).toFixed(2));
     const tranId = `DS-${Date.now()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
 
     // 1. If paying with Wallet Balance
@@ -64,7 +99,13 @@ export const createOrder = async (req, res, next) => {
         paymentMethod: 'WALLET_BALANCE',
         transactionId: tranId,
         items: validatedProducts,
+        couponCode: appliedCoupon?.code,
+        discountAmount,
       });
+
+      if (appliedCoupon?.code) {
+        await db.incrementCouponUsage(appliedCoupon.code);
+      }
 
       // Deduct balance atomically
       await db.adjustWallet({
@@ -77,7 +118,6 @@ export const createOrder = async (req, res, next) => {
 
       // Mark Order as PAID
       if (db.isConfigured()) {
-        const { supabase } = await import('../config/supabase.js');
         await supabase.from('orders').update({ status: 'PAID', payment_status: 'PAID', updated_at: new Date().toISOString() }).eq('id', order.id);
       } else {
         const ord = db.store.orders.find(o => o.id === order.id);
@@ -87,8 +127,15 @@ export const createOrder = async (req, res, next) => {
         }
       }
 
-      // Clear User Cart
+      // Clear User Cart (Supabase + in-memory)
+      if (db.isConfigured()) {
+        const sbCarts = await supabase.from('carts').select('id').eq('user_id', userId).maybeSingle();
+        if (sbCarts?.data?.id) {
+          await supabase.from('cart_items').delete().eq('cart_id', sbCarts.data.id);
+        }
+      }
       db.store.carts[userId] = [];
+
 
       // Notifications
       await db.createNotification({
@@ -117,7 +164,13 @@ export const createOrder = async (req, res, next) => {
         paymentMethod: 'CUTLUY',
         transactionId: tranId,
         items: validatedProducts,
+        couponCode: appliedCoupon?.code,
+        discountAmount,
       });
+
+      if (appliedCoupon?.code) {
+        await db.incrementCouponUsage(appliedCoupon.code);
+      }
 
       const cutluyData = await cutluyService.createPayment({
         amount: totalAmount,
@@ -174,7 +227,13 @@ export const createOrder = async (req, res, next) => {
       paymentMethod: 'ABA_PAYWAY',
       transactionId: tranId,
       items: validatedProducts,
+      couponCode: appliedCoupon?.code,
+      discountAmount,
     });
+
+    if (appliedCoupon?.code) {
+      await db.incrementCouponUsage(appliedCoupon.code);
+    }
 
     // Generate ABA PayWay payload
     const abaItems = validatedProducts.map(p => ({

@@ -20,6 +20,7 @@ import downloadRoutes from './routes/download.routes.js';
 import path from 'path';
 import fs from 'fs';
 import adminRoutes from './routes/admin.routes.js';
+import spinRoutes from './routes/spin.routes.js';
 import { cutluyWebhook } from './controllers/payment.controller.js';
 
 const app = express();
@@ -126,6 +127,7 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/downloads', downloadRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/spin', spinRoutes);
 
 // CutLuy Webhook Root Endpoint
 app.post('/webhooks/cutluy', cutluyWebhook);

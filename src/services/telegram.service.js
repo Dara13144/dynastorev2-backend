@@ -96,6 +96,152 @@ class TelegramService {
   }
 
   /**
+   * Resolve IP location details via public geolocation API
+   */
+  async resolveIpLocation(ip) {
+    try {
+      let targetIp = ip;
+      // If local/loopback or private subnet, detect external public IP
+      if (
+        !targetIp ||
+        targetIp === '127.0.0.1' ||
+        targetIp === '::1' ||
+        targetIp.startsWith('192.168.') ||
+        targetIp.startsWith('10.') ||
+        targetIp.startsWith('172.16.') ||
+        targetIp.startsWith('::ffff:127.')
+      ) {
+        try {
+          const pubRes = await axios.get('https://api.ipify.org?format=json', { timeout: 2500 });
+          if (pubRes.data?.ip) {
+            targetIp = pubRes.data.ip;
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+
+      const geoUrl = `http://ip-api.com/json/${targetIp}?fields=status,message,country,countryCode,regionName,city,zip,lat,lon,timezone,isp,org,as,query`;
+      const res = await axios.get(geoUrl, { timeout: 3500 });
+      if (res.data?.status === 'success') {
+        return {
+          ip: res.data.query || targetIp,
+          country: res.data.country || 'Unknown',
+          countryCode: res.data.countryCode || '',
+          region: res.data.regionName || '',
+          city: res.data.city || 'Unknown',
+          lat: res.data.lat,
+          lon: res.data.lon,
+          timezone: res.data.timezone || '',
+          isp: res.data.isp || res.data.org || 'Unknown ISP',
+        };
+      }
+    } catch (err) {
+      // ignore
+    }
+    return {
+      ip: ip || '127.0.0.1',
+      country: 'Unknown',
+      countryCode: '',
+      region: '',
+      city: 'Unknown',
+      lat: null,
+      lon: null,
+      timezone: '',
+      isp: 'Unknown Network',
+    };
+  }
+
+  /**
+   * Send native Telegram Interactive Location Pin
+   */
+  async sendLocation(latitude, longitude) {
+    if (!this.isConfigured || !latitude || !longitude) return;
+    try {
+      const url = `https://api.telegram.org/bot${this.botToken}/sendLocation`;
+      await axios.post(url, {
+        chat_id: this.adminChatId,
+        latitude: Number(latitude),
+        longitude: Number(longitude),
+      });
+    } catch (e) {
+      console.warn('Telegram sendLocation notice:', e.message);
+    }
+  }
+
+  /**
+   * Notify Telegram Bot when Admin or User logs in with IP, Geolocation, Device & Google Maps Link
+   */
+  async notifyLoginAlert({ user, req, loginMethod = 'Email & Password', clientGeo = null }) {
+    if (!this.isConfigured || !user) return;
+
+    // Strictly send location and login alerts for ADMIN accounts only
+    if (user.role !== 'ADMIN') {
+      return;
+    }
+
+    try {
+      // 1. Resolve client IP
+      const forwarded = req?.headers?.['x-forwarded-for'];
+      const rawIp = forwarded ? forwarded.split(',')[0].trim() : (req?.socket?.remoteAddress || req?.ip || '127.0.0.1');
+      const cleanIp = rawIp.replace(/^::ffff:/, '');
+
+      // 2. Resolve Geolocation
+      const geo = await this.resolveIpLocation(cleanIp);
+      const lat = clientGeo?.lat || clientGeo?.latitude || geo.lat;
+      const lon = clientGeo?.lon || clientGeo?.longitude || geo.lon;
+
+      // 3. Resolve User Agent / Device
+      const userAgent = req?.headers?.['user-agent'] || 'Unknown Device';
+      const isMobile = /mobile|iphone|android|ipad/i.test(userAgent);
+      const deviceIcon = isMobile ? '📱 Mobile Device' : '💻 Desktop PC';
+
+      const isAdmin = user.role === 'ADMIN';
+      const roleBadge = isAdmin ? '👑 <b>ADMINISTRATOR</b>' : '🎮 Standard User';
+
+      // 4. Build Google Maps Link
+      let mapLink = '';
+      if (lat && lon) {
+        mapLink = `\n📍 <b>Google Maps:</b> <a href="https://www.google.com/maps?q=${lat},${lon}">View Live Coordinates (${lat}, ${lon})</a>`;
+      }
+
+      // Convert 2-letter country code to flag emoji
+      const flagEmoji = geo.countryCode
+        ? String.fromCodePoint(...[...geo.countryCode.toUpperCase()].map((c) => 0x1F1E6 + c.charCodeAt(0) - 65))
+        : '🌍';
+
+      const alertHeader = isAdmin
+        ? `🚨 <b>DynaStore SECURITY ALERT - Admin Login Detected!</b> 🚨`
+        : `🔔 <b>DynaStore - User Login Event</b>`;
+
+      const text = `${alertHeader}\n\n` +
+        `👤 <b>User:</b> ${user.username || 'Gamer'}\n` +
+        `📧 <b>Email:</b> <code>${user.email}</code>\n` +
+        `🛡️ <b>Role:</b> ${roleBadge}\n` +
+        `🔑 <b>Login Method:</b> ${loginMethod}\n\n` +
+        `🌐 <b>IP Address:</b> <code>${geo.ip || cleanIp}</code>\n` +
+        `${flagEmoji} <b>Location:</b> ${geo.city}${geo.region ? ', ' + geo.region : ''}, ${geo.country}\n` +
+        `🏢 <b>ISP / Network:</b> ${geo.isp}\n` +
+        (geo.timezone ? `⏳ <b>Timezone:</b> ${geo.timezone}\n` : '') +
+        `🖥️ <b>Platform:</b> ${deviceIcon}\n` +
+        `🔍 <b>User Agent:</b> <code>${userAgent.slice(0, 100)}...</code>` +
+        `${mapLink}\n\n` +
+        `⏰ <b>Timestamp:</b> ${new Date().toLocaleString('en-US', { timeZoneName: 'short' })}`;
+
+      // Send HTML Summary Message
+      await this.sendMessage(text);
+
+      // Send interactive Map Pin on Telegram if coordinates exist
+      if (lat && lon) {
+        await this.sendLocation(lat, lon);
+      }
+    } catch (error) {
+      console.error('Telegram notifyLoginAlert error:', error.message);
+    }
+  }
+
+
+  /**
    * Start polling Telegram updates to auto-login users who click /start login_...
    */
   startPolling(autoConfirmCallback) {

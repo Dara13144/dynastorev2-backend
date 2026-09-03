@@ -5,20 +5,42 @@ import { db } from '../utils/db.js';
 
 const BASE_URL = 'http://127.0.0.1:5001/api';
 
+const TEST_GAMER_EMAIL = `gamer_${Date.now()}@testdynastore.com`;
+const TEST_GAMER_PASSWORD = 'GamerPassword123!';
+const TEST_ADMIN_EMAIL = `admin_${Date.now()}@testdynastore.com`;
+const TEST_ADMIN_PASSWORD = 'AdminPassword123!';
+
 test('E2E - Health Check', async () => {
   const res = await axios.get(`${BASE_URL}/health`);
   assert.equal(res.status, 200);
   assert.equal(res.data.status, 'ok');
 });
 
+test('E2E - Test Suite Account Setup & Registration', async () => {
+  const gamerRes = await axios.post(`${BASE_URL}/auth/register`, {
+    email: TEST_GAMER_EMAIL,
+    username: 'TestSuiteGamer',
+    password: TEST_GAMER_PASSWORD,
+  });
+  assert.equal(gamerRes.status, 201);
+
+  const adminRes = await axios.post(`${BASE_URL}/auth/register`, {
+    email: TEST_ADMIN_EMAIL,
+    username: 'TestSuiteAdmin',
+    password: TEST_ADMIN_PASSWORD,
+  });
+  assert.equal(adminRes.status, 201);
+  await db.updateUser(adminRes.data.user.id, { role: 'ADMIN', balance: 500.00 });
+});
+
 test('E2E - Authentication & JWT Login', async () => {
   const res = await axios.post(`${BASE_URL}/auth/login`, {
-    email: 'gamer@dynastore.com',
-    password: 'Admin@123',
+    email: TEST_GAMER_EMAIL,
+    password: TEST_GAMER_PASSWORD,
   });
   assert.equal(res.status, 200);
   assert.ok(res.data.token, 'Should return JWT token');
-  assert.equal(res.data.user.email, 'gamer@dynastore.com');
+  assert.equal(res.data.user.email, TEST_GAMER_EMAIL);
 
   const meRes = await axios.get(`${BASE_URL}/auth/me`, {
     headers: { Authorization: `Bearer ${res.data.token}` },
@@ -49,7 +71,12 @@ test('E2E - Google OAuth Login & Profile Creation', async () => {
 });
 
 test('E2E - Complete 10-Step OTP Forgot Password & Reset Flow', async () => {
-  const resetTargetEmail = 'gamer@dynastore.com';
+  const resetTargetEmail = `test_reset_${Date.now()}@testdynastore.com`;
+  await axios.post(`${BASE_URL}/auth/register`, {
+    email: resetTargetEmail,
+    username: `resetuser_${Date.now()}`,
+    password: 'OldPassword123!',
+  });
 
   // 1. Request OTP
   const forgotRes = await axios.post(`${BASE_URL}/auth/forgot-password`, {
@@ -139,10 +166,6 @@ test('E2E - Complete 10-Step OTP Forgot Password & Reset Flow', async () => {
   });
   assert.equal(loginRes.status, 200);
   assert.ok(loginRes.data.token);
-
-  // 10. Revert back for other tests
-  const revertHash = '$2a$10$Y1s162xN48943.4Qx4B18OB2vQ8YQ81dF26mQ6v0147B.B0874y3.';
-  await db.updateUserPassword({ email: resetTargetEmail, newPassword: 'Admin@123', newPasswordHash: revertHash });
 });
 
 test('E2E - Real Gmail OTP Dispatch & Passwordless Sign-In', async () => {
@@ -196,8 +219,8 @@ test('E2E - Products Catalog & Categories', async () => {
 
 test('E2E - Wallet Top-Up & ABA Callback Idempotency', async () => {
   const loginRes = await axios.post(`${BASE_URL}/auth/login`, {
-    email: 'gamer@dynastore.com',
-    password: 'Admin@123',
+    email: TEST_GAMER_EMAIL,
+    password: TEST_GAMER_PASSWORD,
   });
   const token = loginRes.data.token;
   const initialBalance = Number(loginRes.data.user.balance);
@@ -239,8 +262,8 @@ test('E2E - Wallet Top-Up & ABA Callback Idempotency', async () => {
 
 test('E2E - CutLuy KHQR Payment, Polling & Auto Fulfill', async () => {
   const loginRes = await axios.post(`${BASE_URL}/auth/login`, {
-    email: 'gamer@dynastore.com',
-    password: 'Admin@123',
+    email: TEST_GAMER_EMAIL,
+    password: TEST_GAMER_PASSWORD,
   });
   const token = loginRes.data.token;
   const initialBalance = Number(loginRes.data.user.balance);
@@ -353,8 +376,8 @@ test('E2E - Purchase Flow, Order Completion & Secure Signed Download', async () 
 
 test('E2E - Admin Authorization & Metrics', async () => {
   const userLogin = await axios.post(`${BASE_URL}/auth/login`, {
-    email: 'gamer@dynastore.com',
-    password: 'Admin@123',
+    email: TEST_GAMER_EMAIL,
+    password: TEST_GAMER_PASSWORD,
   });
   try {
     await axios.get(`${BASE_URL}/admin/dashboard`, {
@@ -366,8 +389,8 @@ test('E2E - Admin Authorization & Metrics', async () => {
   }
 
   const adminLogin = await axios.post(`${BASE_URL}/auth/login`, {
-    email: 'dynastore23084720893yiusjfhgisriw4rihldfjgsijfhweu@gmail.com',
-    password: 'dynastoeoroqeiyrp9wIERYIUqwehyrIU',
+    email: TEST_ADMIN_EMAIL,
+    password: TEST_ADMIN_PASSWORD,
   });
   const adminToken = adminLogin.data.token;
 
@@ -381,8 +404,8 @@ test('E2E - Admin Authorization & Metrics', async () => {
 
 test('E2E - Admin Image Upload & Product Creation with Images', async () => {
   const adminLogin = await axios.post(`${BASE_URL}/auth/login`, {
-    email: 'dynastore23084720893yiusjfhgisriw4rihldfjgsijfhweu@gmail.com',
-    password: 'dynastoeoroqeiyrp9wIERYIUqwehyrIU',
+    email: TEST_ADMIN_EMAIL,
+    password: TEST_ADMIN_PASSWORD,
   });
   const adminToken = adminLogin.data.token;
 
@@ -490,8 +513,8 @@ test('E2E - Telegram QR Code Scan Login, Polling & Auto-Confirmation Flow', asyn
 test('E2E - Cross-Device QR Code Authorization & Session Transfer', async () => {
   // 1. Authenticate primary device (Phone / Admin)
   const loginRes = await axios.post(`${BASE_URL}/auth/login`, {
-    email: 'dynastore23084720893yiusjfhgisriw4rihldfjgsijfhweu@gmail.com',
-    password: 'dynastoeoroqeiyrp9wIERYIUqwehyrIU',
+    email: TEST_ADMIN_EMAIL,
+    password: TEST_ADMIN_PASSWORD,
   });
   const phoneToken = loginRes.data.token;
 

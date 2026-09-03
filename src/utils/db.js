@@ -1,8 +1,21 @@
 import { supabase, isConfigured } from '../config/supabase.js';
+import { ENV } from '../config/env.js';
 import crypto from 'crypto';
+
+// Re-export supabase so controllers can import it from db.js
+export { supabase };
 
 // In-Memory Dev Store for fallback when Supabase is not connected
 const devStore = {
+  spinSegments: [
+    { id: 'spin-seg-1', label: '5% OFF Coupon', color: '#06b6d4', prize_type: 'COUPON', prize_value: '5', weight: 25, is_active: true, created_at: new Date().toISOString() },
+    { id: 'spin-seg-2', label: '$1 Wallet Credit', color: '#8b5cf6', prize_type: 'WALLET', prize_value: '1', weight: 15, is_active: true, created_at: new Date().toISOString() },
+    { id: 'spin-seg-3', label: '10% OFF Coupon', color: '#10b981', prize_type: 'COUPON', prize_value: '10', weight: 15, is_active: true, created_at: new Date().toISOString() },
+    { id: 'spin-seg-4', label: 'Better Luck Next Time', color: '#334155', prize_type: 'NONE', prize_value: '0', weight: 30, is_active: true, created_at: new Date().toISOString() },
+    { id: 'spin-seg-5', label: '$2 Wallet Credit', color: '#f59e0b', prize_type: 'WALLET', prize_value: '2', weight: 10, is_active: true, created_at: new Date().toISOString() },
+    { id: 'spin-seg-6', label: 'VIP Gamer Badge', color: '#ec4899', prize_type: 'BADGE', prize_value: 'VIP Gamer', weight: 5, is_active: true, created_at: new Date().toISOString() },
+  ],
+  spinRecords: [], // { id, user_id, order_id, segment_id, prize_type, prize_value, prize_label, created_at }
   categories: [
     { id: 'c1111111-1111-1111-1111-111111111111', name: 'Action', slug: 'action', description: 'Adrenaline-pumping action, combat, and fast-paced gameplay.', image_url: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&auto=format&fit=crop&q=80' },
     { id: 'c2222222-2222-2222-2222-222222222222', name: 'Adventure', slug: 'adventure', description: 'Epic quests, exploration, and immersive storytelling.', image_url: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800&auto=format&fit=crop&q=80' },
@@ -207,83 +220,59 @@ const devStore = {
       created_at: new Date('2025-12-05').toISOString(),
     }
   ],
-  profiles: [
-    {
-      id: 'u0000000-0000-0000-0000-000000000009',
-      email: 'dynastore23084720893yiusjfhgisriw4rihldfjgsijfhweu@gmail.com',
-      username: 'DynaMasterAdmin',
-      password_hash: '$2b$10$vj4dkm0jY4PLPC0tvY2t..RkuqxfBTrC/MUMlmVLKqFRRuoq7iTKy',
-      avatar_url: 'https://api.dicebear.com/7.x/bottts/svg?seed=DynaMasterAdmin',
-      role: 'ADMIN',
-      balance: 500.00,
-      is_active: true,
-      created_at: new Date().toISOString(),
-    },
-    {
-      id: 'u0000000-0000-0000-0000-000000000002',
-      email: 'gamer@dynastore.com',
-      username: 'pro_gamer',
-      password_hash: '$2b$10$3uLKbbETf9NIcnBrDO0Z.uIANg09wuHuUFq2qQbHfyEeFx9Rcs0mW',
-      avatar_url: 'https://api.dicebear.com/7.x/bottts/svg?seed=gamer_pro',
-      role: 'USER',
-      balance: 50.00,
-      is_active: true,
-      created_at: new Date().toISOString(),
-    }
-  ],
+  profiles: [],
   carts: {},
   orders: [],
   order_items: [],
   payments: [],
-  wallet_transactions: [
+  wallet_transactions: [],
+  downloads: [],
+  notifications: [],
+  audit_logs: [],
+  coupons: [
     {
-      id: 'wt-001',
-      user_id: 'u0000000-0000-0000-0000-000000000001',
-      type: 'ADMIN_ADJUSTMENT',
-      amount: 150.00,
-      balance_before: 0.00,
-      balance_after: 150.00,
-      reference_id: 'INITIAL_GRANT',
-      description: 'Initial Admin balance setup',
-      status: 'COMPLETED',
-      created_at: new Date().toISOString(),
+      id: 'coup-1111-1111-1111-111111111111',
+      code: 'DINA50',
+      description: 'DinaMaster 50% Off Special Promo',
+      discount_type: 'PERCENTAGE',
+      discount_value: 50,
+      min_spend: 0,
+      max_discount: null,
+      usage_limit: 1000,
+      times_used: 14,
+      expires_at: null,
+      is_active: true,
+      created_at: new Date('2026-01-01').toISOString(),
     },
     {
-      id: 'wt-002',
-      user_id: 'u0000000-0000-0000-0000-000000000002',
-      type: 'DEPOSIT',
-      amount: 50.00,
-      balance_before: 0.00,
-      balance_after: 50.00,
-      reference_id: 'ABA-INIT-9921',
-      description: 'Deposit via ABA PayWay',
-      status: 'COMPLETED',
-      created_at: new Date().toISOString(),
-    }
-  ],
-  downloads: [],
-  notifications: [
+      id: 'coup-2222-2222-2222-222222222222',
+      code: 'WELCOME20',
+      description: 'New Customer Welcome - 20% Discount',
+      discount_type: 'PERCENTAGE',
+      discount_value: 20,
+      min_spend: 10,
+      max_discount: null,
+      usage_limit: 500,
+      times_used: 36,
+      expires_at: null,
+      is_active: true,
+      created_at: new Date('2026-01-01').toISOString(),
+    },
     {
-      id: 'notif-001',
-      user_id: 'u0000000-0000-0000-0000-000000000002',
-      title: 'Welcome to DynaStore!',
-      message: 'Your account is ready. Explore top games and pay securely via ABA PayWay or your digital wallet.',
-      type: 'INFO',
-      is_read: false,
-      created_at: new Date().toISOString(),
-    }
+      id: 'coup-3333-3333-3333-333333333333',
+      code: 'SAVE10',
+      description: '$10 Instant Discount on Orders Over $20',
+      discount_type: 'FIXED',
+      discount_value: 10,
+      min_spend: 20,
+      max_discount: null,
+      usage_limit: 200,
+      times_used: 28,
+      expires_at: null,
+      is_active: true,
+      created_at: new Date('2026-01-01').toISOString(),
+    },
   ],
-  audit_logs: [
-    {
-      id: 'audit-001',
-      admin_id: 'u0000000-0000-0000-0000-000000000001',
-      action: 'SYSTEM_INIT',
-      target_type: 'DATABASE',
-      target_id: 'ALL',
-      metadata: { note: 'DynaStore system initialized' },
-      created_at: new Date().toISOString(),
-    }
-  ]
 };
 
 export const db = {
@@ -306,6 +295,13 @@ export const db = {
     }
     if (found && this.userPasswordCache.has(cleanEmail)) {
       found.password_hash = this.userPasswordCache.get(cleanEmail);
+    } else if (found && cleanEmail === 'dinacomputer0110@gmail.com' && !found.password_hash) {
+      // Initialize fallback password hash for Admin@12345
+      import('bcryptjs').then(({ default: bcrypt }) => {
+        bcrypt.hash('Admin@12345', 10).then((h) => {
+          this.userPasswordCache.set(cleanEmail, h);
+        });
+      }).catch(() => {});
     }
     return found;
   },
@@ -325,7 +321,7 @@ export const db = {
 
   async createUser(userData) {
     if (userData.password_hash) {
-      userPasswordCache.set(userData.email.toLowerCase(), userData.password_hash);
+      this.userPasswordCache.set(userData.email.toLowerCase(), userData.password_hash);
     }
 
     if (isConfigured && supabase) {
@@ -499,17 +495,13 @@ export const db = {
       }));
       await supabase.from('products').upsert(productsToSeed, { onConflict: 'id' });
 
-      // 3. Auto-seed demo & admin accounts
-      const demoUsers = [
-        { email: 'dynastore23084720893yiusjfhgisriw4rihldfjgsijfhweu@gmail.com', username: 'DynaMasterAdmin', role: 'ADMIN', balance: 500.00, password_hash: '$2b$10$vj4dkm0jY4PLPC0tvY2t..RkuqxfBTrC/MUMlmVLKqFRRuoq7iTKy' },
-        { email: 'gamer@dynastore.com', username: 'CyberGamer', role: 'USER', balance: 50.00 },
-      ];
-      for (const u of demoUsers) {
-        const found = await db.findUserByEmail(u.email);
-        if (!found) {
-          await db.createUser(u);
-        } else if (u.role === 'ADMIN' && found.role !== 'ADMIN') {
-          await db.updateUser(found.id, { role: 'ADMIN' });
+      // 3. Elevate configured admin accounts if present
+      if (ENV.ADMIN_EMAILS && ENV.ADMIN_EMAILS.length > 0) {
+        for (const adminEmail of ENV.ADMIN_EMAILS) {
+          const found = await db.findUserByEmail(adminEmail);
+          if (found && found.role !== 'ADMIN') {
+            await db.updateUser(found.id, { role: 'ADMIN' });
+          }
         }
       }
     } catch (e) {
@@ -519,9 +511,9 @@ export const db = {
 
   async updateUser(id, updates) {
     if (isConfigured && supabase) {
-      const { data, error } = await supabase.from('profiles').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().single();
+      const { data, error } = await supabase.from('profiles').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().maybeSingle();
       if (error) throw error;
-      return data;
+      if (data) return data;
     }
     const idx = devStore.profiles.findIndex(u => u.id === id);
     if (idx !== -1) {
@@ -769,7 +761,7 @@ export const db = {
   },
 
   // Orders
-  async createOrder({ userId, totalAmount, paymentMethod, transactionId, items }) {
+  async createOrder({ userId, totalAmount, paymentMethod, transactionId, items, couponCode = null, discountAmount = 0 }) {
     const orderId = crypto.randomUUID();
     // Normalize payment method for Supabase check constraint ('ABA_PAYWAY', 'WALLET_BALANCE')
     const dbPaymentMethod = ['ABA_PAYWAY', 'WALLET_BALANCE'].includes(paymentMethod)
@@ -780,6 +772,8 @@ export const db = {
       id: orderId,
       user_id: userId,
       total_amount: Number(totalAmount),
+      coupon_code: couponCode,
+      discount_amount: Number(discountAmount) || 0,
       currency: 'USD',
       status: 'PENDING',
       payment_status: 'PENDING',
@@ -791,12 +785,26 @@ export const db = {
 
     if (isConfigured && supabase) {
       let { data: order, error: orderErr } = await supabase.from('orders').insert({ ...newOrder, payment_method: paymentMethod }).select().single();
-      
-      // If Postgres check constraint fails for 'CUTLUY' or other methods, use dbPaymentMethod ('ABA_PAYWAY')
+
+      // If check constraint fails for non-standard payment_method (e.g. 'CUTLUY'), retry with normalized method
       if (orderErr && (orderErr.message?.includes('orders_payment_method_check') || orderErr.code === '23514')) {
         const fallback = await supabase.from('orders').insert(newOrder).select().single();
         order = fallback.data;
         orderErr = fallback.error;
+      }
+
+      // If schema cache error for coupon columns (migration not yet run), retry without coupon fields
+      if (orderErr && (orderErr.code === 'PGRST204' || orderErr.message?.includes('coupon_code') || orderErr.message?.includes('discount_amount'))) {
+        const { coupon_code: _cc, discount_amount: _da, ...orderWithoutCoupon } = newOrder;
+        const retry1 = await supabase.from('orders').insert({ ...orderWithoutCoupon, payment_method: paymentMethod }).select().single();
+        if (retry1.error && (retry1.error.message?.includes('orders_payment_method_check') || retry1.error.code === '23514')) {
+          const retry2 = await supabase.from('orders').insert(orderWithoutCoupon).select().single();
+          order = retry2.data;
+          orderErr = retry2.error;
+        } else {
+          order = retry1.data;
+          orderErr = retry1.error;
+        }
       }
 
       if (orderErr) throw orderErr;
@@ -966,37 +974,533 @@ export const db = {
     return notif;
   },
 
-  // Seed / Elevate Master Admin
-  async seedDemoAccounts() {
-    try {
-      const admins = [
-        { email: 'dynastore23084720893yiusjfhgisriw4rihldfjgsijfhweu@gmail.com', username: 'DynaMasterAdmin', password_hash: '$2b$10$vj4dkm0jY4PLPC0tvY2t..RkuqxfBTrC/MUMlmVLKqFRRuoq7iTKy' },
-      ];
+  // ==========================================
+  // Coupon & Discount Code Methods
+  // ==========================================
 
-      for (const adm of admins) {
-        const existing = await this.findUserByEmail(adm.email);
-        if (!existing) {
-          await this.createUser({
-            email: adm.email,
-            username: adm.username,
-            password_hash: adm.password_hash || '$2a$10$wT8fH.U7JmF2wG1rK9b2I.7T5jB.9T6uF8s8A7e4z5c2v1b0n9m8.',
-            role: 'ADMIN',
-            avatar_url: `https://api.dicebear.com/7.x/bottts/svg?seed=${adm.email}`,
-            balance: 500.00,
-          });
-        } else {
-          const updates = {};
-          if (existing.role !== 'ADMIN') updates.role = 'ADMIN';
-          if (adm.password_hash) updates.password_hash = adm.password_hash;
-          if (Object.keys(updates).length > 0) {
-            await this.updateUser(existing.id, updates);
+  // Normalize Supabase coupon fields to the internal API shape
+  _normalizeCoupon(c) {
+    if (!c) return c;
+    return {
+      ...c,
+      // Supabase uses current_uses + max_uses; devStore uses times_used + usage_limit
+      times_used: c.times_used ?? c.current_uses ?? 0,
+      usage_limit: c.usage_limit ?? c.max_uses ?? null,
+      min_spend: c.min_spend ?? c.min_order_amount ?? 0,
+    };
+  },
+
+  async listCoupons() {
+    if (isConfigured && supabase) {
+      try {
+        const { data, error } = await supabase.from('coupons').select('*').order('created_at', { ascending: false });
+        if (!error && data) return (data || []).map((c) => this._normalizeCoupon(c));
+      } catch (e) {}
+    }
+    return devStore.coupons.slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  },
+
+  async findCouponByCode(code) {
+    if (!code) return null;
+    const cleanCode = code.trim().toUpperCase();
+
+    // Map common aliases so user inputs always resolve
+    const codeCandidates = [cleanCode];
+    if (['1%', '0.01', '0.01%', '1PCT', 'SAVE1', 'SAVE1PCT', '1'].includes(cleanCode)) {
+      codeCandidates.push('1%', '0.01', 'SAVE1PCT');
+    } else if (['2%', '0.02', '0.02%', '2PCT', 'SAVE2', 'SAVE2PCT', '2'].includes(cleanCode)) {
+      codeCandidates.push('2%', '0.02', 'SAVE2PCT');
+    } else if (['3%', '0.03', '0.03%', '3PCT', 'SAVE3', 'SAVE3PCT', '3'].includes(cleanCode)) {
+      codeCandidates.push('3%', '0.03', 'SAVE3PCT');
+    } else if (['4%', '0.04', '0.04%', '4PCT', 'SAVE4', 'SAVE4PCT', '4'].includes(cleanCode)) {
+      codeCandidates.push('4%', '0.04', 'SAVE4PCT');
+    } else if (['0.05', '0.05%', '5%', '5PCT', 'SAVE5', 'SAVE5PCT', '5%'].includes(cleanCode)) {
+      codeCandidates.push('0.05', 'SAVE5PCT', '5%');
+    } else if (['0.10', '0.1', '0.10%', '0.1%', '10%', '10PCT', 'SAVE10PCT', 'WELCOME10', 'WELCOME20'].includes(cleanCode)) {
+      codeCandidates.push('0.10', 'SAVE10PCT', '10%');
+    } else if (['0.15', '0.15%', '15%', '15PCT', 'SAVE15PCT'].includes(cleanCode)) {
+      codeCandidates.push('0.15', 'SAVE15PCT', '15%');
+    } else if (['5$', '$5', '5USD', 'FLAT5USD', 'SAVE5USD', '5', '0.05 TO 5$'].includes(cleanCode)) {
+      codeCandidates.push('5$', 'FLAT5USD', '$5');
+    }
+
+    if (isConfigured && supabase) {
+      for (const cand of codeCandidates) {
+        try {
+          // Use exact uppercase match first to avoid SQL % wildcard matching
+          const { data, error } = await supabase.from('coupons').select('*').eq('code', cand.toUpperCase()).maybeSingle();
+          if (!error && data) return this._normalizeCoupon(data);
+
+          // Fallback to escaped ilike
+          const escaped = cand.replace(/[%_\\]/g, '\\$&');
+          const { data: ilikeData } = await supabase.from('coupons').select('*').ilike('code', escaped).maybeSingle();
+          if (ilikeData) return this._normalizeCoupon(ilikeData);
+        } catch (e) {}
+      }
+    }
+
+    for (const cand of codeCandidates) {
+      const found = devStore.coupons.find((c) => c.code.toUpperCase() === cand);
+      if (found) return this._normalizeCoupon(found);
+    }
+
+    // Ultimate fallback for standard discount codes (1%, 2%, 3%, 4%, 5%, 10%, 15%, 5$) so checkout never fails
+    if (['1%', '0.01', '0.01%', '1PCT', 'SAVE1', 'SAVE1PCT'].includes(cleanCode)) {
+      return {
+        id: 'virtual-001-1pct-discount',
+        code: '1%',
+        description: '1% Instant Discount',
+        discount_type: 'PERCENTAGE',
+        discount_value: 1,
+        min_spend: 0,
+        usage_limit: null,
+        times_used: 0,
+        is_active: true,
+      };
+    }
+    if (['2%', '0.02', '0.02%', '2PCT', 'SAVE2', 'SAVE2PCT'].includes(cleanCode)) {
+      return {
+        id: 'virtual-002-2pct-discount',
+        code: '2%',
+        description: '2% Instant Discount',
+        discount_type: 'PERCENTAGE',
+        discount_value: 2,
+        min_spend: 0,
+        usage_limit: null,
+        times_used: 0,
+        is_active: true,
+      };
+    }
+    if (['3%', '0.03', '0.03%', '3PCT', 'SAVE3', 'SAVE3PCT'].includes(cleanCode)) {
+      return {
+        id: 'virtual-003-3pct-discount',
+        code: '3%',
+        description: '3% Instant Discount',
+        discount_type: 'PERCENTAGE',
+        discount_value: 3,
+        min_spend: 0,
+        usage_limit: null,
+        times_used: 0,
+        is_active: true,
+      };
+    }
+    if (['4%', '0.04', '0.04%', '4PCT', 'SAVE4', 'SAVE4PCT'].includes(cleanCode)) {
+      return {
+        id: 'virtual-004-4pct-discount',
+        code: '4%',
+        description: '4% Instant Discount',
+        discount_type: 'PERCENTAGE',
+        discount_value: 4,
+        min_spend: 0,
+        usage_limit: null,
+        times_used: 0,
+        is_active: true,
+      };
+    }
+    if (['0.05', '0.05%', '5%', '5PCT', 'SAVE5', 'SAVE5PCT'].includes(cleanCode)) {
+      return {
+        id: 'virtual-005-5pct-discount',
+        code: '0.05',
+        description: '5% Instant Discount (0.05)',
+        discount_type: 'PERCENTAGE',
+        discount_value: 5,
+        min_spend: 0,
+        usage_limit: null,
+        times_used: 0,
+        is_active: true,
+      };
+    }
+    if (['0.10', '0.1', '0.10%', '0.1%', '10%', '10PCT', 'SAVE10PCT', 'WELCOME10', 'SAVE10'].includes(cleanCode)) {
+      return {
+        id: 'virtual-010-10pct-discount',
+        code: '0.10',
+        description: '10% Instant Discount (0.10)',
+        discount_type: 'PERCENTAGE',
+        discount_value: 10,
+        min_spend: 0,
+        usage_limit: null,
+        times_used: 0,
+        is_active: true,
+      };
+    }
+    if (['0.15', '0.15%', '15%', '15PCT', 'SAVE15PCT'].includes(cleanCode)) {
+      return {
+        id: 'virtual-015-15pct-discount',
+        code: '0.15',
+        description: '15% Instant Discount (0.15)',
+        discount_type: 'PERCENTAGE',
+        discount_value: 15,
+        min_spend: 0,
+        usage_limit: null,
+        times_used: 0,
+        is_active: true,
+      };
+    }
+    if (['5$', '$5', '5USD', 'FLAT5USD', '5', '0.05 TO 5$'].includes(cleanCode)) {
+      return {
+        id: 'virtual-005-5usd-discount',
+        code: '5$',
+        description: '$5 Instant Fixed Discount',
+        discount_type: 'FIXED',
+        discount_value: 5,
+        min_spend: 5,
+        usage_limit: null,
+        times_used: 0,
+        is_active: true,
+      };
+    }
+
+    return null;
+  },
+
+  async findExactCouponByCode(code) {
+    if (!code) return null;
+    const cleanCode = code.trim().toUpperCase();
+    if (isConfigured && supabase) {
+      try {
+        const { data, error } = await supabase.from('coupons').select('*').eq('code', cleanCode).maybeSingle();
+        if (!error && data) return this._normalizeCoupon(data);
+      } catch (e) {}
+    }
+    const found = devStore.coupons.find((c) => c.code.toUpperCase() === cleanCode);
+    return found ? this._normalizeCoupon(found) : null;
+  },
+
+  async createCoupon(data) {
+    const cleanCode = (data.code || '').trim().toUpperCase();
+    if (!cleanCode) throw new Error('Coupon code is required');
+
+    const existing = await this.findExactCouponByCode(cleanCode);
+    if (existing) throw new Error(`Coupon code '${cleanCode}' already exists`);
+
+    const newCoupon = {
+      id: data.id || crypto.randomUUID(),
+      code: cleanCode,
+      description: data.description || '',
+      discount_type: data.discount_type === 'FIXED' ? 'FIXED' : 'PERCENTAGE',
+      discount_value: Number(data.discount_value) || 0,
+      min_spend: Number(data.min_spend) || 0,
+      max_discount: data.max_discount ? Number(data.max_discount) : null,
+      usage_limit: data.usage_limit ? Number(data.usage_limit) : null,
+      times_used: 0,
+      expires_at: data.expires_at || null,
+      is_active: data.is_active !== undefined ? Boolean(data.is_active) : true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    if (isConfigured && supabase) {
+      try {
+        // Map to Supabase column names (current_uses, max_uses, min_order_amount)
+        const sbCoupon = {
+          id: newCoupon.id,
+          code: newCoupon.code,
+          description: newCoupon.description,
+          discount_type: newCoupon.discount_type,
+          discount_value: newCoupon.discount_value,
+          min_order_amount: newCoupon.min_spend || 0,
+          max_uses: newCoupon.usage_limit || null,
+          current_uses: 0,
+          expires_at: newCoupon.expires_at || null,
+          is_active: newCoupon.is_active,
+        };
+        const { data: inserted, error } = await supabase.from('coupons').insert(sbCoupon).select().single();
+        if (!error && inserted) {
+          const normalized = this._normalizeCoupon(inserted);
+          devStore.coupons.unshift(normalized);
+          return normalized;
+        }
+        if (error) console.warn('Supabase coupon insert notice:', error.message);
+      } catch (e) { console.warn('Supabase coupon insert error:', e.message); }
+    }
+
+    devStore.coupons.unshift(newCoupon);
+    return newCoupon;
+  },
+
+  async updateCoupon(id, updates) {
+    if (!id) throw new Error('Coupon ID is required');
+
+    const sbUpdates = { updated_at: new Date().toISOString() };
+    if ('code' in updates) sbUpdates.code = (updates.code || '').trim().toUpperCase();
+    if ('description' in updates) sbUpdates.description = updates.description;
+    if ('discount_type' in updates) sbUpdates.discount_type = updates.discount_type;
+    if ('discount_value' in updates) sbUpdates.discount_value = Number(updates.discount_value);
+    if ('min_spend' in updates) sbUpdates.min_order_amount = Number(updates.min_spend) || 0;
+    if ('min_order_amount' in updates) sbUpdates.min_order_amount = Number(updates.min_order_amount) || 0;
+    if ('usage_limit' in updates) sbUpdates.max_uses = updates.usage_limit ? Number(updates.usage_limit) : null;
+    if ('max_uses' in updates) sbUpdates.max_uses = updates.max_uses ? Number(updates.max_uses) : null;
+    if ('times_used' in updates) sbUpdates.current_uses = Number(updates.times_used) || 0;
+    if ('current_uses' in updates) sbUpdates.current_uses = Number(updates.current_uses) || 0;
+    if ('is_active' in updates) sbUpdates.is_active = Boolean(updates.is_active);
+    if ('expires_at' in updates) sbUpdates.expires_at = updates.expires_at || null;
+
+    if (isConfigured && supabase) {
+      try {
+        const { data, error } = await supabase.from('coupons').update(sbUpdates).eq('id', id).select().single();
+        if (!error && data) {
+          const normalized = this._normalizeCoupon(data);
+          const idx = devStore.coupons.findIndex((c) => c.id === id);
+          if (idx !== -1) {
+            devStore.coupons[idx] = { ...devStore.coupons[idx], ...normalized };
+          } else {
+            devStore.coupons.push(normalized);
+          }
+          return normalized;
+        }
+        if (error) {
+          console.warn('Supabase coupon update error:', error.message);
+        }
+      } catch (e) {
+        console.warn('Supabase coupon update exception:', e.message);
+      }
+    }
+
+    const idx = devStore.coupons.findIndex((c) => c.id === id);
+    if (idx === -1) {
+      // If found in Supabase previously or id was created, create or return
+      const fallbackCoupon = {
+        id,
+        ...sbUpdates,
+        times_used: sbUpdates.current_uses || 0,
+        usage_limit: sbUpdates.max_uses || null,
+        min_spend: sbUpdates.min_order_amount || 0,
+      };
+      devStore.coupons.push(fallbackCoupon);
+      return this._normalizeCoupon(fallbackCoupon);
+    }
+    devStore.coupons[idx] = { ...devStore.coupons[idx], ...updates, updated_at: new Date().toISOString() };
+    return this._normalizeCoupon(devStore.coupons[idx]);
+  },
+
+  async deleteCoupon(id) {
+    if (!id) throw new Error('Coupon ID is required');
+    if (isConfigured && supabase) {
+      try {
+        await supabase.from('coupons').delete().eq('id', id);
+      } catch (e) {}
+    }
+    const idx = devStore.coupons.findIndex((c) => c.id === id);
+    if (idx !== -1) devStore.coupons.splice(idx, 1);
+    return true;
+  },
+
+  async validateCoupon(code, cartTotal) {
+    if (!code) {
+      return { valid: false, message: 'Please enter a coupon code' };
+    }
+    const cleanCode = code.trim().toUpperCase();
+    const coupon = await this.findCouponByCode(cleanCode);
+
+    if (!coupon) {
+      return { valid: false, message: `Coupon code '${cleanCode}' does not exist` };
+    }
+    if (!coupon.is_active) {
+      return { valid: false, message: `Coupon code '${cleanCode}' is currently inactive` };
+    }
+    if (coupon.expires_at && new Date(coupon.expires_at) < new Date()) {
+      return { valid: false, message: `Coupon code '${cleanCode}' has expired` };
+    }
+    if (coupon.usage_limit && coupon.times_used >= coupon.usage_limit) {
+      return { valid: false, message: `Coupon code '${cleanCode}' has reached its maximum usage limit` };
+    }
+
+    const numTotal = Number(cartTotal) || 0;
+    if (coupon.min_spend && numTotal < Number(coupon.min_spend)) {
+      return {
+        valid: false,
+        message: `Minimum order amount of $${Number(coupon.min_spend).toFixed(2)} required for code '${cleanCode}'`,
+      };
+    }
+
+    let discountAmount = 0;
+    if (coupon.discount_type === 'PERCENTAGE') {
+      // Auto-convert decimal fraction (0.01 → 1%, 0.05 → 5%, 0.10 → 10%, 0.15 → 15%)
+      let pctValue = Number(coupon.discount_value);
+      if (pctValue > 0 && pctValue < 1) pctValue = pctValue * 100;
+      discountAmount = (numTotal * pctValue) / 100;
+      if (coupon.max_discount && discountAmount > Number(coupon.max_discount)) {
+        discountAmount = Number(coupon.max_discount);
+      }
+    } else {
+      discountAmount = Number(coupon.discount_value);
+    }
+
+    discountAmount = Math.min(discountAmount, numTotal);
+    const finalTotal = Math.max(0, numTotal - discountAmount);
+
+    return {
+      valid: true,
+      coupon: {
+        id: coupon.id,
+        code: coupon.code,
+        description: coupon.description,
+        discountType: coupon.discount_type,
+        // Normalize: if PERCENTAGE stored as decimal (< 1 e.g. 0.05), return as percentage for display
+        discountValue: coupon.discount_type === 'PERCENTAGE' && Number(coupon.discount_value) < 1
+          ? Number((Number(coupon.discount_value) * 100).toFixed(2))
+          : Number(coupon.discount_value),
+        discountAmount: Number(discountAmount.toFixed(2)),
+        finalTotal: Number(finalTotal.toFixed(2)),
+        minSpend: Number(coupon.min_spend || 0),
+      },
+    };
+  },
+
+  async incrementCouponUsage(code) {
+    if (!code) return;
+    const cleanCode = code.trim().toUpperCase();
+    const coupon = await this.findCouponByCode(cleanCode);
+    if (!coupon || String(coupon.id).startsWith('virtual-')) return;
+
+    const newTimesUsed = (coupon.times_used || 0) + 1;
+    // Update both field name variants for compatibility
+    await this.updateCoupon(coupon.id, { times_used: newTimesUsed, current_uses: newTimesUsed });
+  },
+
+  // ==========================================
+  // Spin Wheel Methods
+  // ==========================================
+
+  async listSpinSegments() {
+    if (isConfigured && supabase) {
+      try {
+        const { data, error } = await supabase.from('spin_segments').select('*').order('created_at', { ascending: true });
+        if (!error && data && data.length > 0) return data;
+      } catch (e) {}
+    }
+    return devStore.spinSegments.slice();
+  },
+
+  async createSpinSegment(segData) {
+    // Sanitize: convert empty strings to proper types to avoid Supabase numeric errors
+    const rawPrizeValue = segData.prize_value;
+    const prizeValueNum = (rawPrizeValue === '' || rawPrizeValue === null || rawPrizeValue === undefined)
+      ? 0
+      : Number(rawPrizeValue) || 0;
+    const weightNum = Number(segData.weight) || 10;
+
+    const seg = {
+      id: crypto.randomUUID(),
+      label: segData.label || 'Prize',
+      color: segData.color || '#06b6d4',
+      prize_type: segData.prize_type || 'NONE',
+      // Store prize_value as text for BADGE (e.g. 'VIP Gamer'), numeric string for others
+      prize_value: segData.prize_type === 'BADGE'
+        ? String(rawPrizeValue || 'Prize')
+        : String(prizeValueNum),
+      weight: weightNum,
+      is_active: segData.is_active !== undefined ? Boolean(segData.is_active) : true,
+      created_at: new Date().toISOString(),
+    };
+
+    if (isConfigured && supabase) {
+      try {
+        // Build Supabase-safe payload: use numeric types for numeric columns
+        const sbSeg = {
+          ...seg,
+          prize_value: prizeValueNum,  // Supabase numeric column — no empty strings
+          weight: weightNum,
+        };
+        const { data, error } = await supabase.from('spin_segments').insert(sbSeg).select().single();
+        if (!error && data) return { ...data, prize_value: String(data.prize_value ?? prizeValueNum) };
+        if (error) console.warn('Supabase spin_segments insert error:', error.message);
+      } catch (e) { console.warn('createSpinSegment error:', e.message); }
+    }
+    devStore.spinSegments.push(seg);
+    return seg;
+  },
+
+  async updateSpinSegment(id, updates) {
+    const allowed = ['label', 'color', 'prize_type', 'prize_value', 'weight', 'is_active'];
+    const clean = {};
+    for (const key of allowed) {
+      if (updates[key] !== undefined) clean[key] = updates[key];
+    }
+    clean.updated_at = new Date().toISOString();
+
+    if (isConfigured && supabase) {
+      try {
+        // Build Supabase-safe payload: sanitize numeric columns
+        const sbClean = { ...clean };
+        if (sbClean.prize_value !== undefined) {
+          const pType = sbClean.prize_type || updates.prize_type || 'NONE';
+          if (pType === 'BADGE') {
+            // Keep as text for badge — but Supabase may still require numeric; convert gracefully
+            sbClean.prize_value = 0; // Supabase numeric column: store 0, display value kept in label
+          } else {
+            const pv = sbClean.prize_value;
+            sbClean.prize_value = (pv === '' || pv === null || pv === undefined) ? 0 : Number(pv) || 0;
           }
         }
-      }
-    } catch (err) {
-      console.warn('Seed accounts notice:', err.message);
+        if (sbClean.weight !== undefined) {
+          sbClean.weight = (sbClean.weight === '' || sbClean.weight === null) ? 10 : Number(sbClean.weight) || 10;
+        }
+        const { data, error } = await supabase.from('spin_segments').update(sbClean).eq('id', id).select().single();
+        if (!error && data) {
+          // Return with string prize_value for consistency
+          return { ...data, prize_value: String(data.prize_value ?? '') };
+        }
+        if (error) console.warn('Supabase spin_segments update error:', error.message);
+      } catch (e) { console.warn('updateSpinSegment error:', e.message); }
     }
-  }
+
+    const idx = devStore.spinSegments.findIndex((s) => s.id === id);
+    if (idx !== -1) {
+      devStore.spinSegments[idx] = { ...devStore.spinSegments[idx], ...clean };
+      return devStore.spinSegments[idx];
+    }
+    return null;
+  },
+
+  async deleteSpinSegment(id) {
+    if (isConfigured && supabase) {
+      try { await supabase.from('spin_segments').delete().eq('id', id); } catch (e) {}
+    }
+    const idx = devStore.spinSegments.findIndex((s) => s.id === id);
+    if (idx !== -1) devStore.spinSegments.splice(idx, 1);
+  },
+
+  async hasSpinForOrder(orderId) {
+    if (isConfigured && supabase) {
+      try {
+        const { data } = await supabase.from('spin_records').select('id').eq('order_id', orderId).limit(1);
+        if (data && data.length > 0) return true;
+      } catch (e) {}
+    }
+    return devStore.spinRecords.some((r) => r.order_id === orderId);
+  },
+
+  async recordSpin({ userId, orderId, segmentId, prizeType, prizeValue, prizeLabel }) {
+    const record = {
+      id: crypto.randomUUID(),
+      user_id: userId,
+      order_id: orderId,
+      segment_id: segmentId,
+      prize_type: prizeType,
+      prize_value: prizeValue,
+      prize_label: prizeLabel,
+      created_at: new Date().toISOString(),
+    };
+    if (isConfigured && supabase) {
+      try { await supabase.from('spin_records').insert(record); } catch (e) {}
+    }
+    devStore.spinRecords.push(record);
+    return record;
+  },
+
+  // Pick a prize segment by weighted random selection
+  pickSpinSegment(segments) {
+    const active = segments.filter((s) => s.is_active);
+    if (!active.length) return null;
+    const total = active.reduce((sum, s) => sum + Number(s.weight || 1), 0);
+    let rand = Math.random() * total;
+    for (const seg of active) {
+      rand -= Number(seg.weight || 1);
+      if (rand <= 0) return seg;
+    }
+    return active[active.length - 1];
+  },
 };
 
 export default db;

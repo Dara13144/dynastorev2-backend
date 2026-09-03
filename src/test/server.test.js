@@ -26,8 +26,14 @@ test('Database Adapter - Fetch products and seed data', async () => {
 });
 
 test('Database Adapter - Wallet adjustments and integrity', async () => {
-  const user = await db.findUserByEmail('gamer@dynastore.com');
-  assert.ok(user, 'Should find demo user');
+  const testEmail = `test_wallet_${Date.now()}@example.com`;
+  const user = await db.createUser({
+    email: testEmail,
+    username: 'WalletTester',
+    balance: 50.00,
+    role: 'USER',
+  });
+  assert.ok(user, 'Should create test user');
 
   const beforeBalance = user.balance;
   const result = await db.adjustWallet({

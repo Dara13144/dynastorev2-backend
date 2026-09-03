@@ -1,6 +1,8 @@
 import crypto from 'crypto';
+import fs from 'fs';
 import { db } from '../utils/db.js';
 import { storageService } from '../services/storage.service.js';
+import { backupService } from '../services/backup.service.js';
 
 export const getDashboardMetrics = async (req, res, next) => {
   try {
@@ -112,9 +114,9 @@ export const createProduct = async (req, res, next) => {
       slug: `${slug}-${crypto.randomBytes(2).toString('hex')}`,
       description: description || '',
       short_description: short_description || '',
-      price: Number(price),
-      discount_price: discount_price ? Number(discount_price) : null,
-      category_id: category_id || null,
+      price: (price === '' || price === null || price === undefined) ? 0 : Number(price) || 0,
+      discount_price: (discount_price !== '' && discount_price !== null && discount_price !== undefined) ? Number(discount_price) : null,
+      category_id: category_id ? String(category_id) : null,
       platform: platform || 'PC',
       version: version || '1.0.0',
       developer: developer || '',
@@ -163,7 +165,59 @@ export const createProduct = async (req, res, next) => {
 export const updateProduct = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const updates = req.body;
+    const body = req.body || {};
+
+    // Sanitize incoming fields to prevent database numeric/UUID errors
+    const updates = {};
+    const allowedFields = [
+      'title',
+      'slug',
+      'description',
+      'short_description',
+      'price',
+      'discount_price',
+      'category_id',
+      'platform',
+      'version',
+      'developer',
+      'publisher',
+      'release_date',
+      'cover_image',
+      'screenshots',
+      'file_path',
+      'file_name',
+      'file_size',
+      'system_requirements',
+      'is_published',
+    ];
+
+    for (const field of allowedFields) {
+      if (body[field] !== undefined) {
+        updates[field] = body[field];
+      }
+    }
+
+    if (updates.price !== undefined) {
+      updates.price = (updates.price === '' || updates.price === null) ? 0 : Number(updates.price) || 0;
+    }
+
+    if (updates.discount_price !== undefined) {
+      updates.discount_price = (updates.discount_price === '' || updates.discount_price === null)
+        ? null
+        : Number(updates.discount_price);
+    }
+
+    if (updates.category_id !== undefined) {
+      updates.category_id = updates.category_id ? String(updates.category_id) : null;
+    }
+
+    if (updates.is_published !== undefined) {
+      updates.is_published = Boolean(updates.is_published);
+    }
+
+    if (updates.screenshots !== undefined && !Array.isArray(updates.screenshots)) {
+      updates.screenshots = [];
+    }
 
     if (db.isConfigured()) {
       const { supabase } = await import('../config/supabase.js');
@@ -179,7 +233,7 @@ export const updateProduct = async (req, res, next) => {
         action: 'UPDATE_PRODUCT',
         targetType: 'PRODUCT',
         targetId: id,
-        metadata: updates,
+        metadata: { title: data.title, price: data.price },
       });
       return res.json({ success: true, product: data });
     }
@@ -198,7 +252,7 @@ export const updateProduct = async (req, res, next) => {
       action: 'UPDATE_PRODUCT',
       targetType: 'PRODUCT',
       targetId: id,
-      metadata: updates,
+      metadata: { title: db.store.products[idx].title, price: db.store.products[idx].price },
     });
 
     res.json({ success: true, product: db.store.products[idx] });
@@ -468,3 +522,268 @@ export const uploadStorageFile = async (req, res, next) => {
     next(error);
   }
 };
+
+// ==========================================
+// System Backup & Recovery Controllers
+// ==========================================
+
+export const getBackups = async (req, res, next) => {
+  try {
+    const [backups, stats] = await Promise.all([
+      backupService.listBackups(),
+      backupService.getBackupStats(),
+    ]);
+
+    res.json({
+      success: true,
+      backups,
+      stats,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const createSystemBackup = async (req, res, next) => {
+  try {
+    const { note } = req.body || {};
+    const backup = await backupService.createBackup({
+      adminId: req.user?.id,
+      adminEmail: req.user?.email,
+      note,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'System backup snapshot generated successfully',
+      backup,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const downloadBackup = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const fileInfo = await backupService.getBackupFile(id);
+
+    if (!fileInfo || !fs.existsSync(fileInfo.filePath)) {
+      return res.status(404).json({
+        success: false,
+        message: 'Backup file not found',
+      });
+    }
+
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileInfo.fileName}"`);
+    const stream = fs.createReadStream(fileInfo.filePath);
+    stream.pipe(res);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const exportLiveBackup = async (req, res, next) => {
+  try {
+    const rawData = await backupService.getFullSystemData();
+    const timestamp = new Date().toISOString();
+    const fileName = `dynastore_live_backup_${timestamp.replace(/[:.]/g, '-')}.json`;
+
+    const counts = {};
+    let totalRecords = 0;
+    for (const [key, rows] of Object.entries(rawData)) {
+      counts[key] = rows.length;
+      totalRecords += rows.length;
+    }
+
+    const payload = {
+      version: '2.0.0',
+      system: 'DynaStore',
+      exportedAt: timestamp,
+      exportedBy: req.user?.email || 'Admin',
+      counts,
+      totalRecords,
+      data: rawData,
+    };
+
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.send(JSON.stringify(payload, null, 2));
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const restoreSystemBackup = async (req, res, next) => {
+  try {
+    const mode = req.body?.mode || 'merge';
+    let backupPayload = null;
+
+    if (req.file) {
+      // Uploaded as multipart file
+      const fileContent = req.file.buffer.toString('utf8');
+      backupPayload = JSON.parse(fileContent);
+    } else if (req.body?.backupData) {
+      // Passed as direct JSON object
+      backupPayload = req.body.backupData;
+    } else if (req.body?.backupId) {
+      // Referenced from existing snapshot on server
+      const fileInfo = await backupService.getBackupFile(req.body.backupId);
+      if (!fileInfo) {
+        return res.status(404).json({ success: false, message: 'Specified backup snapshot not found' });
+      }
+      const raw = fs.readFileSync(fileInfo.filePath, 'utf8');
+      backupPayload = JSON.parse(raw);
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: 'No backup file or snapshot ID provided for restoration',
+      });
+    }
+
+    const result = await backupService.restoreBackup({
+      backupData: backupPayload,
+      mode,
+      adminId: req.user?.id,
+    });
+
+    res.json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteSystemBackup = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const result = await backupService.deleteBackup(id, req.user?.id);
+    res.json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// =========================================================================
+// Coupon & Discount Code Management
+// =========================================================================
+
+export const getCoupons = async (req, res, next) => {
+  try {
+    const coupons = await db.listCoupons();
+    const stats = {
+      totalCoupons: coupons.length,
+      activeCoupons: coupons.filter((c) => c.is_active).length,
+      totalTimesUsed: coupons.reduce((sum, c) => sum + (c.times_used || 0), 0),
+    };
+    res.json({
+      success: true,
+      coupons,
+      stats,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const createCoupon = async (req, res, next) => {
+  try {
+    const {
+      code,
+      description,
+      discount_type,
+      discount_value,
+      min_spend,
+      max_discount,
+      usage_limit,
+      expires_at,
+      is_active,
+    } = req.body;
+
+    if (!code || !discount_value) {
+      return res.status(400).json({ success: false, message: 'Code and discount value are required' });
+    }
+
+    const coupon = await db.createCoupon({
+      code,
+      description,
+      discount_type: discount_type || 'PERCENTAGE',
+      discount_value,
+      min_spend,
+      max_discount,
+      usage_limit,
+      expires_at,
+      is_active,
+    });
+
+    await db.createAuditLog({
+      adminId: req.user.id,
+      action: 'COUPON_CREATED',
+      targetType: 'COUPON',
+      targetId: coupon.id,
+      metadata: { code: coupon.code, discount_type: coupon.discount_type, discount_value: coupon.discount_value },
+    });
+
+    res.status(201).json({
+      success: true,
+      message: `Discount code '${coupon.code}' created successfully`,
+      coupon,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateCoupon = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+
+    const coupon = await db.updateCoupon(id, updates);
+
+    await db.createAuditLog({
+      adminId: req.user.id,
+      action: 'COUPON_UPDATED',
+      targetType: 'COUPON',
+      targetId: id,
+      metadata: updates,
+    });
+
+    res.json({
+      success: true,
+      message: 'Discount code updated successfully',
+      coupon,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteCoupon = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    await db.deleteCoupon(id);
+
+    await db.createAuditLog({
+      adminId: req.user.id,
+      action: 'COUPON_DELETED',
+      targetType: 'COUPON',
+      targetId: id,
+    });
+
+    res.json({
+      success: true,
+      message: 'Discount code deleted successfully',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
