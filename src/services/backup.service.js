@@ -273,7 +273,18 @@ export class BackupService {
           let insertedCount = 0;
 
           for (let i = 0; i < rows.length; i += chunkSize) {
-            const chunk = rows.slice(i, i + chunkSize);
+            let chunk = rows.slice(i, i + chunkSize);
+            if (table === 'coupons') {
+              chunk = chunk.map(c => {
+                const { min_spend, times_used, usage_limit, ...rest } = c;
+                return {
+                  ...rest,
+                  min_order_amount: rest.min_order_amount ?? min_spend ?? 0,
+                  current_uses: rest.current_uses ?? times_used ?? 0,
+                  max_uses: rest.max_uses ?? usage_limit ?? null,
+                };
+              });
+            }
             const { error } = await supabase.from(table).upsert(chunk, { onConflict: 'id' });
             if (error) {
               console.warn(`Restore warning on table ${table}:`, error.message);
