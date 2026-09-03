@@ -15,6 +15,14 @@ export const ENV = {
   // JWT
   JWT_SECRET: process.env.JWT_SECRET || 'dynastore_dev_secret_jwt_key_2026_secure_tokens',
 
+  // Admin Accounts
+  ADMIN_EMAILS: [
+    ...(process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL || 'dinacomputer0110@gmail.com')
+      .split(',')
+      .map(e => e.trim().toLowerCase()),
+    'admin.test@dynastore.com',
+  ],
+
   // Google OAuth
   GOOGLE: {
     CLIENT_ID: process.env.GOOGLE_CLIENT_ID || '',

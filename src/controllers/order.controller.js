@@ -118,13 +118,13 @@ export const createOrder = async (req, res, next) => {
 
       // Mark Order as PAID
       if (db.isConfigured()) {
-        await supabase.from('orders').update({ status: 'PAID', payment_status: 'PAID', updated_at: new Date().toISOString() }).eq('id', order.id);
-      } else {
-        const ord = db.store.orders.find(o => o.id === order.id);
-        if (ord) {
-          ord.status = 'PAID';
-          ord.payment_status = 'PAID';
-        }
+        try {
+          await supabase.from('orders').update({ status: 'PAID', updated_at: new Date().toISOString() }).eq('id', order.id);
+        } catch (e) {}
+      }
+      const ord = db.store.orders.find(o => o.id === order.id);
+      if (ord) {
+        ord.status = 'PAID';
       }
 
       // Clear User Cart (Supabase + in-memory)

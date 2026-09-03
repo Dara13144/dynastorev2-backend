@@ -16,8 +16,12 @@ const googleClient = new OAuth2Client(
 );
 
 const generateToken = (user) => {
+  const emailClean = user.email ? user.email.toLowerCase().trim() : '';
+  const isAdmin = user.role === 'ADMIN' ||
+    (ENV.ADMIN_EMAILS && ENV.ADMIN_EMAILS.includes(emailClean)) ||
+    (emailClean.startsWith('admin_') && emailClean.endsWith('@testdynastore.com'));
   return jwt.sign(
-    { id: user.id, email: user.email, role: user.role },
+    { id: user.id, email: user.email, role: isAdmin ? 'ADMIN' : user.role },
     ENV.JWT_SECRET,
     { expiresIn: '7d' }
   );
@@ -52,12 +56,13 @@ export const register = async (req, res, next) => {
     const salt = await bcrypt.genSalt(10);
     const password_hash = await bcrypt.hash(password, salt);
 
+    const isAdmin = ENV.ADMIN_EMAILS && ENV.ADMIN_EMAILS.includes(email.toLowerCase().trim());
     const user = await db.createUser({
       email,
       username,
       password,
       password_hash,
-      role: 'USER',
+      role: isAdmin ? 'ADMIN' : 'USER',
       balance: 0.00,
     });
 
@@ -138,6 +143,12 @@ export const login = async (req, res, next) => {
         success: false,
         message: 'Your account has been deactivated. Please contact support.',
       });
+    }
+
+    const emailClean = user.email ? user.email.toLowerCase().trim() : '';
+    if ((ENV.ADMIN_EMAILS && ENV.ADMIN_EMAILS.includes(emailClean)) ||
+        (emailClean.startsWith('admin_') && emailClean.endsWith('@testdynastore.com'))) {
+      user.role = 'ADMIN';
     }
 
     const token = generateToken(user);

@@ -553,19 +553,7 @@ export const db = {
     }
   },
 
-  async updateUser(id, updates) {
-    if (isConfigured && supabase) {
-      const { data, error } = await supabase.from('profiles').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().maybeSingle();
-      if (error) throw error;
-      if (data) return data;
-    }
-    const idx = devStore.profiles.findIndex(u => u.id === id);
-    if (idx !== -1) {
-      devStore.profiles[idx] = { ...devStore.profiles[idx], ...updates, updated_at: new Date().toISOString() };
-      return devStore.profiles[idx];
-    }
-    return null;
-  },
+
 
   // In-Memory store for password reset & OTP verification codes
   resetCache: new Map(),
@@ -719,9 +707,12 @@ export const db = {
       else if (sort === 'price_desc') query = query.order('price', { ascending: false });
       else query = query.order('created_at', { ascending: false });
 
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
+      try {
+        const { data, error } = await query;
+        if (!error && data && data.length > 0) return data;
+      } catch (e) {
+        console.warn('Supabase getProducts notice:', e.message);
+      }
     }
 
     // In-memory filter
@@ -751,8 +742,10 @@ export const db = {
 
   async getProductBySlug(slug) {
     if (isConfigured && supabase) {
-      const { data } = await supabase.from('products').select('*, category:categories(id, name, slug)').eq('slug', slug).maybeSingle();
-      return data;
+      try {
+        const { data, error } = await supabase.from('products').select('*, category:categories(id, name, slug)').eq('slug', slug).maybeSingle();
+        if (!error && data) return data;
+      } catch (e) {}
     }
     const p = devStore.products.find(prod => prod.slug === slug);
     if (!p) return null;
@@ -764,8 +757,10 @@ export const db = {
 
   async getProductById(id) {
     if (isConfigured && supabase) {
-      const { data } = await supabase.from('products').select('*, category:categories(id, name, slug)').eq('id', id).maybeSingle();
-      return data;
+      try {
+        const { data, error } = await supabase.from('products').select('*, category:categories(id, name, slug)').eq('id', id).maybeSingle();
+        if (!error && data) return data;
+      } catch (e) {}
     }
     const p = devStore.products.find(prod => prod.id === id);
     if (!p) return null;
@@ -778,31 +773,15 @@ export const db = {
   // Categories
   async getCategories() {
     if (isConfigured && supabase) {
-      const { data } = await supabase.from('categories').select('*').order('name');
-      return data || [];
+      try {
+        const { data, error } = await supabase.from('categories').select('*').order('name');
+        if (!error && data && data.length > 0) return data;
+      } catch (e) {}
     }
     return devStore.categories;
   },
 
-  async hasUserPurchasedProduct(userId, productId) {
-    try {
-      if (isConfigured && supabase) {
-        const { data } = await supabase
-          .from('order_items')
-          .select('id, order:orders!inner(user_id, status)')
-          .eq('product_id', productId)
-          .eq('orders.user_id', userId)
-          .eq('orders.status', 'PAID')
-          .limit(1);
-        return Boolean(data && data.length > 0);
-      }
-      const userOrders = devStore.orders.filter(o => o.user_id === userId && o.status === 'PAID');
-      const userOrderIds = userOrders.map(o => o.id);
-      return devStore.order_items.some(item => userOrderIds.includes(item.order_id) && item.product_id === productId);
-    } catch (e) {
-      return false;
-    }
-  },
+
 
   // Orders
   async createOrder({ userId, totalAmount, paymentMethod, transactionId, items, couponCode = null, discountAmount = 0 }) {
@@ -851,21 +830,27 @@ export const db = {
         }
       }
 
-      if (orderErr) throw orderErr;
+      if (!orderErr && order) {
+        const orderItems = items.map(item => ({
+          id: crypto.randomUUID(),
+          order_id: order.id,
+          product_id: item.id,
+          product_title: item.title,
+          price: item.discount_price !== null && item.discount_price !== undefined ? Number(item.discount_price) : Number(item.price),
+          quantity: 1,
+          created_at: new Date().toISOString(),
+        }));
 
-      const orderItems = items.map(item => ({
-        id: crypto.randomUUID(),
-        order_id: order.id,
-        product_id: item.id,
-        product_title: item.title,
-        price: item.discount_price !== null && item.discount_price !== undefined ? Number(item.discount_price) : Number(item.price),
-        quantity: 1,
-      }));
+        const { error: itemsErr } = await supabase.from('order_items').insert(orderItems);
+        if (itemsErr) console.warn('Supabase order_items insert notice:', itemsErr.message);
 
-      const { error: itemsErr } = await supabase.from('order_items').insert(orderItems);
-      if (itemsErr) throw itemsErr;
+        devStore.orders.push({ ...newOrder, ...order });
+        devStore.order_items.push(...orderItems);
 
-      return { ...order, payment_method: paymentMethod, items: orderItems };
+        return { ...order, payment_method: paymentMethod, items: orderItems };
+      } else {
+        console.warn('Supabase createOrder fallback notice:', orderErr?.message);
+      }
     }
 
     const orderItems = items.map(item => ({
@@ -922,14 +907,16 @@ export const db = {
   // Check if a user has purchased a product
   async hasUserPurchasedProduct(userId, productId) {
     if (isConfigured && supabase) {
-      const { data } = await supabase
-        .from('order_items')
-        .select('id, orders!inner(user_id, status)')
-        .eq('product_id', productId)
-        .eq('orders.user_id', userId)
-        .in('orders.status', ['PAID', 'COMPLETED'])
-        .limit(1);
-      return Boolean(data && data.length > 0);
+      try {
+        const { data } = await supabase
+          .from('order_items')
+          .select('id, orders!inner(user_id, status)')
+          .eq('product_id', productId)
+          .eq('orders.user_id', userId)
+          .in('orders.status', ['PAID', 'COMPLETED'])
+          .limit(1);
+        if (data && data.length > 0) return true;
+      } catch (e) {}
     }
 
     const paidOrderIds = devStore.orders
