@@ -24,10 +24,22 @@ async function getSupabaseCartId(userId) {
 
 export const getCart = async (req, res, next) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user ? req.user.id : (req.headers['x-guest-id'] || 'guest');
 
-    // --- Supabase path ---
-    if (db.isConfigured() && supabase) {
+    // If unauthenticated guest without items, return empty cart immediately
+    if (!req.user && (!db.store.carts[userId] || db.store.carts[userId].length === 0)) {
+      return res.json({
+        success: true,
+        cart: {
+          items: [],
+          subtotal: 0,
+          total: 0,
+        },
+      });
+    }
+
+    // --- Supabase path (Authenticated users only) ---
+    if (req.user && db.isConfigured() && supabase) {
       try {
         const cartId = await getSupabaseCartId(userId);
         if (cartId) {
@@ -111,7 +123,7 @@ export const getCart = async (req, res, next) => {
 
 export const addToCart = async (req, res, next) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user ? req.user.id : (req.headers['x-guest-id'] || 'guest');
     const { productId } = req.body;
 
     if (!productId) {
@@ -123,17 +135,19 @@ export const addToCart = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Product not found or unavailable' });
     }
 
-    // Check if user already bought this game
-    const alreadyPurchased = await db.hasUserPurchasedProduct(userId, productId);
-    if (alreadyPurchased) {
-      return res.status(400).json({
-        success: false,
-        message: 'You have already purchased this game. It is available in your Downloads section.',
-      });
+    // Check if user already bought this game (authenticated users)
+    if (req.user) {
+      const alreadyPurchased = await db.hasUserPurchasedProduct(userId, productId);
+      if (alreadyPurchased) {
+        return res.status(400).json({
+          success: false,
+          message: 'You have already purchased this game. It is available in your Downloads section.',
+        });
+      }
     }
 
-    // --- Supabase path ---
-    if (db.isConfigured() && supabase) {
+    // --- Supabase path (authenticated users) ---
+    if (req.user && db.isConfigured() && supabase) {
       try {
         const cartId = await getSupabaseCartId(userId);
         if (cartId) {
@@ -178,11 +192,11 @@ export const addToCart = async (req, res, next) => {
 
 export const removeFromCart = async (req, res, next) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user ? req.user.id : (req.headers['x-guest-id'] || 'guest');
     const { productId } = req.params;
 
     // --- Supabase path ---
-    if (db.isConfigured() && supabase) {
+    if (req.user && db.isConfigured() && supabase) {
       try {
         const cartId = await getSupabaseCartId(userId);
         if (cartId) {
@@ -206,10 +220,10 @@ export const removeFromCart = async (req, res, next) => {
 
 export const clearCart = async (req, res, next) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user ? req.user.id : (req.headers['x-guest-id'] || 'guest');
 
     // --- Supabase path ---
-    if (db.isConfigured() && supabase) {
+    if (req.user && db.isConfigured() && supabase) {
       try {
         const cartId = await getSupabaseCartId(userId);
         if (cartId) {
