@@ -89,8 +89,13 @@ export const getSecureDownloadUrl = async (req, res, next) => {
     };
 
     if (db.isConfigured()) {
-      const { supabase } = await import('../config/supabase.js');
-      await supabase.from('downloads').insert(downloadLog);
+      try {
+        const { supabase } = await import('../config/supabase.js');
+        const { error } = await supabase.from('downloads').insert(downloadLog);
+        if (error) db.store.downloads.push(downloadLog);
+      } catch (e) {
+        db.store.downloads.push(downloadLog);
+      }
     } else {
       db.store.downloads.push(downloadLog);
     }

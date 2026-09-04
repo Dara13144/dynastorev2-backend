@@ -125,14 +125,14 @@ export const createOrder = async (req, res, next) => {
       const ord = db.store.orders.find(o => o.id === order.id);
       if (ord) {
         ord.status = 'PAID';
-      }
-
-      // Clear User Cart (Supabase + in-memory)
+      }      // Clear User Cart (Supabase + in-memory)
       if (db.isConfigured()) {
-        const sbCarts = await supabase.from('carts').select('id').eq('user_id', userId).maybeSingle();
-        if (sbCarts?.data?.id) {
-          await supabase.from('cart_items').delete().eq('cart_id', sbCarts.data.id);
-        }
+        try {
+          const sbCarts = await supabase.from('carts').select('id').eq('user_id', userId).maybeSingle();
+          if (sbCarts?.data?.id) {
+            await supabase.from('cart_items').delete().eq('cart_id', sbCarts.data.id);
+          }
+        } catch (e) {}
       }
       db.store.carts[userId] = [];
 
@@ -140,23 +140,20 @@ export const createOrder = async (req, res, next) => {
       // Notifications
       await db.createNotification({
         userId,
-        title: 'Order Paid & Games Unlocked!',
-        message: `Order #${order.id} for $${totalAmount} was paid via Wallet Balance. You can now download your game files.`,
+        title: 'Order Paid with Wallet!',
+        message: `Your order #${order.id.slice(0, 8)} was successful. Total paid: $${totalAmount}.`,
         type: 'SUCCESS',
       });
 
-      telegramService.notifyNewOrder({ ...order, status: 'PAID' }).catch(() => {});
-
       return res.status(201).json({
         success: true,
-        message: 'Order completed and paid with wallet balance',
+        message: 'Order paid successfully via wallet balance',
         orderId: order.id,
         status: 'PAID',
-        totalAmount,
       });
     }
 
-    // 2. If paying with CutLuy KHQR (Bakong / All Banks)
+    // 2. If paying with CutLuy (ABA KHQR Auto-Confirm)
     if (paymentMethod === 'CUTLUY') {
       const order = await db.createOrder({
         userId,
@@ -164,40 +161,44 @@ export const createOrder = async (req, res, next) => {
         paymentMethod: 'CUTLUY',
         transactionId: tranId,
         items: validatedProducts,
-        couponCode: appliedCoupon?.code,
+        couponCode: appliedCoupon?.code || null,
         discountAmount,
       });
 
-      if (appliedCoupon?.code) {
-        await db.incrementCouponUsage(appliedCoupon.code);
-      }
-
+      // Call CutLuy Payment Gateway API to generate real Bakong KHQR
       const cutluyData = await cutluyService.createPayment({
         amount: totalAmount,
-        reference_id: tranId,
+        referenceId: tranId,
+        description: `Order ${tranId.slice(-6)} - DynaStore`,
+        customerName: req.user.username || 'Gamer',
+        customerEmail: req.user.email || 'customer@dynastore.com',
       });
 
+      // Record payment attempt
       const paymentRecord = {
         id: crypto.randomUUID(),
-        user_id: userId,
         order_id: order.id,
-        transaction_id: tranId,
+        user_id: userId,
         provider: 'CUTLUY',
+        transaction_id: tranId,
         amount: totalAmount,
         currency: 'USD',
-        payment_type: 'ORDER',
         status: 'PENDING',
+        payment_type: 'PURCHASE',
+        qr_string: cutluyData.qr_string || null,
+        payment_url: cutluyData.payment_url || null,
         provider_transaction_id: cutluyData.id,
         provider_response: cutluyData,
         signature_verified: false,
         created_at: new Date().toISOString(),
       };
 
+      db.store.payments.push(paymentRecord);
       if (db.isConfigured()) {
-        const { supabase } = await import('../config/supabase.js');
-        await supabase.from('payments').insert(paymentRecord);
-      } else {
-        db.store.payments.push(paymentRecord);
+        try {
+          const { supabase } = await import('../config/supabase.js');
+          await supabase.from('payments').insert(paymentRecord);
+        } catch (e) {}
       }
 
       telegramService.notifyNewOrder(order).catch(() => {});
@@ -209,18 +210,19 @@ export const createOrder = async (req, res, next) => {
         message: 'Order created, proceed to CutLuy KHQR payment',
         orderId: order.id,
         transactionId: tranId,
-        cutluyId: cutluyData.id,
         totalAmount,
-        currency: cutluyData.currency || 'USD',
-        qrString: cutluyData.qr_string,
-        qrSvgUrl,
-        checkoutUrl: cutluyData.checkout_url,
-        expiresAt: cutluyData.expires_at,
-        cutluyPayment: cutluyData,
+        cutluyPayment: {
+          cutluyId: cutluyData.id,
+          qrString: cutluyData.qr_string,
+          qrSvgUrl,
+          paymentUrl: cutluyData.payment_url,
+          status: cutluyData.status || 'pending',
+          expiresAt: cutluyData.expires_at,
+        },
       });
     }
 
-    // 3. If paying with ABA PayWay
+    // 3. If paying with ABA PayWay (Cards / ABA Mobile)
     const order = await db.createOrder({
       userId,
       totalAmount,
@@ -235,32 +237,23 @@ export const createOrder = async (req, res, next) => {
       await db.incrementCouponUsage(appliedCoupon.code);
     }
 
-    // Generate ABA PayWay payload
-    const abaItems = validatedProducts.map(p => ({
-      name: p.title.slice(0, 40),
-      quantity: 1,
-      price: (p.discount_price !== null && p.discount_price !== undefined ? Number(p.discount_price) : Number(p.price)).toFixed(2),
-    }));
-
-    const nameParts = (req.user.username || 'Customer User').split(' ');
-    const firstName = nameParts[0] || 'Customer';
-    const lastName = nameParts.slice(1).join(' ') || 'User';
-
-    const paywayPayload = abaPaywayService.createPaymentPayload({
+    const paywayPayload = abaPaywayService.generatePurchasePayload({
       tranId,
       amount: totalAmount,
-      items: abaItems,
-      firstName,
-      lastName,
+      reqTime: Math.floor(Date.now() / 1000),
+      firstname: req.user.username || 'Gamer',
+      lastname: 'DynaStore',
       email: req.user.email,
-      returnParams: JSON.stringify({ order_id: order.id, user_id: userId }),
+      phone: req.user.phone || '012345678',
+      returnUrl: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/order/success?tran_id=${tranId}`,
+      cancelUrl: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/order/cancel?tran_id=${tranId}`,
     });
 
-    // Record pending payment in DB
+    // Record payment attempt
     const paymentRecord = {
       id: crypto.randomUUID(),
-      user_id: userId,
       order_id: order.id,
+      user_id: userId,
       transaction_id: tranId,
       provider: 'ABA_PAYWAY',
       amount: totalAmount,
@@ -271,11 +264,12 @@ export const createOrder = async (req, res, next) => {
       created_at: new Date().toISOString(),
     };
 
+    db.store.payments.push(paymentRecord);
     if (db.isConfigured()) {
-      const { supabase } = await import('../config/supabase.js');
-      await supabase.from('payments').insert(paymentRecord);
-    } else {
-      db.store.payments.push(paymentRecord);
+      try {
+        const { supabase } = await import('../config/supabase.js');
+        await supabase.from('payments').insert(paymentRecord);
+      } catch (e) {}
     }
 
     telegramService.notifyNewOrder(order).catch(() => {});

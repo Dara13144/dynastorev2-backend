@@ -28,198 +28,7 @@ const devStore = {
     { id: 'c9999999-9999-9999-9999-999999999999', name: 'Minecraft & Sandbox', slug: 'minecraft', description: 'Block building, custom modpacks, shaders, and adventure maps.', image_url: 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=800&auto=format&fit=crop&q=80' },
     { id: 'caaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', name: 'PC Games', slug: 'pc-games', description: 'Top tier standalone PC titles, indie gems, and classics.', image_url: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=800&auto=format&fit=crop&q=80' },
   ],
-  products: [
-    {
-      id: '11111111-1111-1111-1111-111111111111',
-      title: 'CyberPulse 2088: Neon Protocol',
-      slug: 'cyberpulse-2088-neon-protocol',
-      description: 'Enter a dystopian cyberpunk megalopolis as an augmented operative fighting rogue AI syndicates. Features high-octane cyber-gunplay, hacking mechanics, ray-traced neon visuals, and an original synthwave soundtrack.',
-      short_description: 'Fast-paced cyberpunk action shooter with cybernetic augmentations and neon graphics.',
-      price: 24.99,
-      discount_price: 14.99,
-      category_id: 'c1111111-1111-1111-1111-111111111111',
-      platform: 'PC / Windows',
-      version: 'v1.4.2',
-      developer: 'NeonBlade Studios',
-      publisher: 'DynaPublishing',
-      release_date: '2025-11-15',
-      cover_image: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&auto=format&fit=crop&q=80',
-      screenshots: [
-        'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=1200&auto=format&fit=crop&q=80',
-        'https://images.unsplash.com/photo-1511512578047-dfb367046420?w=1200&auto=format&fit=crop&q=80',
-        'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=1200&auto=format&fit=crop&q=80'
-      ],
-      file_path: 'games/cyberpulse_2088_v1.4.2.zip',
-      file_name: 'cyberpulse_2088_setup.zip',
-      file_size: '4.8 GB',
-      is_published: true,
-      system_requirements: {
-        os: 'Windows 10/11 64-bit',
-        processor: 'Intel Core i7-9700K / AMD Ryzen 7 3700X',
-        memory: '16 GB RAM',
-        graphics: 'NVIDIA RTX 3060 / AMD RX 6700 XT',
-        storage: '15 GB SSD'
-      },
-      created_at: new Date('2025-11-15').toISOString(),
-    },
-    {
-      id: '22222222-2222-2222-2222-222222222222',
-      title: 'Chronicles of Eldoria: Kingdom Fall',
-      slug: 'chronicles-of-eldoria-kingdom-fall',
-      description: 'An open-world action RPG set in the sprawling fantasy realm of Eldoria. Master ancient magic, forge legendary relics, defeat colossal dragons, and shape the political destiny of five warring kingdoms.',
-      short_description: 'Epic fantasy RPG with open-world exploration, dynamic magic, and dragon battles.',
-      price: 39.99,
-      discount_price: 29.99,
-      category_id: 'c3333333-3333-3333-3333-333333333333',
-      platform: 'PC / Windows',
-      version: 'v2.0.1',
-      developer: 'Mythic Forge Interactive',
-      publisher: 'DynaPublishing',
-      release_date: '2025-09-20',
-      cover_image: 'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?w=800&auto=format&fit=crop&q=80',
-      screenshots: [
-        'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?w=1200&auto=format&fit=crop&q=80',
-        'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=1200&auto=format&fit=crop&q=80'
-      ],
-      file_path: 'games/eldoria_kingdom_fall_v2.0.1.zip',
-      file_name: 'eldoria_kingdom_fall.zip',
-      file_size: '12.4 GB',
-      is_published: true,
-      system_requirements: {
-        os: 'Windows 10 64-bit',
-        processor: 'Intel Core i5-10400 / AMD Ryzen 5 3600',
-        memory: '16 GB RAM',
-        graphics: 'NVIDIA GTX 1660 Super / AMD RX 5600 XT',
-        storage: '25 GB SSD'
-      },
-      created_at: new Date('2025-09-20').toISOString(),
-    },
-    {
-      id: '33333333-3333-3333-3333-333333333333',
-      title: 'Apex Drift: Tokyo Midnight',
-      slug: 'apex-drift-tokyo-midnight',
-      description: 'Experience true Japanese street racing culture. Tune custom drift machines, challenge rival touge crews on mount Haruna, and conquer the glowing Shuto Expressway in dynamic rain and night conditions.',
-      short_description: 'Hyper-realistic street drift simulation with Japanese tuners and authentic physics.',
-      price: 19.99,
-      discount_price: 9.99,
-      category_id: 'c4444444-4444-4444-4444-444444444444',
-      platform: 'PC / Windows',
-      version: 'v1.1.0',
-      developer: 'Redline Sim Racing',
-      publisher: 'Apex Dynamics',
-      release_date: '2026-01-10',
-      cover_image: 'https://images.unsplash.com/photo-1511919884226-fd3cad34687c?w=800&auto=format&fit=crop&q=80',
-      screenshots: [
-        'https://images.unsplash.com/photo-1511919884226-fd3cad34687c?w=1200&auto=format&fit=crop&q=80',
-        'https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=1200&auto=format&fit=crop&q=80'
-      ],
-      file_path: 'games/apex_drift_tokyo_v1.1.0.zip',
-      file_name: 'apex_drift_tokyo.zip',
-      file_size: '8.2 GB',
-      is_published: true,
-      system_requirements: {
-        os: 'Windows 10/11',
-        processor: 'Intel Core i5-8400 / AMD Ryzen 5 2600',
-        memory: '8 GB RAM',
-        graphics: 'NVIDIA GTX 1060 6GB / AMD RX 580',
-        storage: '12 GB'
-      },
-      created_at: new Date('2026-01-10').toISOString(),
-    },
-    {
-      id: '44444444-4444-4444-4444-444444444444',
-      title: 'VoxelCraft Ultra: RPG Overhaul Modpack',
-      slug: 'voxelcraft-ultra-rpg-overhaul',
-      description: 'The ultimate sandbox overhaul package including 150+ curated RPG mechanics, custom bosses, magical spellcraft, shaders, and biome expansions ready to install in one click.',
-      short_description: 'Complete sandbox overhaul modpack with magic, dragons, dungeons and shaders.',
-      price: 9.99,
-      discount_price: 4.99,
-      category_id: 'c9999999-9999-9999-9999-999999999999',
-      platform: 'PC / Java',
-      version: 'v3.5.0',
-      developer: 'BlockCrafters Guild',
-      publisher: 'DynaStore Exclusive',
-      release_date: '2026-02-01',
-      cover_image: 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=800&auto=format&fit=crop&q=80',
-      screenshots: [
-        'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=1200&auto=format&fit=crop&q=80'
-      ],
-      file_path: 'games/voxelcraft_ultra_v3.5.zip',
-      file_name: 'voxelcraft_ultra_modpack.zip',
-      file_size: '1.5 GB',
-      is_published: true,
-      system_requirements: {
-        os: 'Windows/Mac/Linux',
-        processor: 'Any modern Quad Core CPU',
-        memory: '8 GB RAM (Allocated)',
-        graphics: 'OpenGL 4.4 compatible',
-        storage: '4 GB'
-      },
-      created_at: new Date('2026-02-01').toISOString(),
-    },
-    {
-      id: '55555555-5555-5555-5555-555555555555',
-      title: 'Shadows of Blackwood Manor',
-      slug: 'shadows-of-blackwood-manor',
-      description: 'First-person psychological survival horror. Investigate an abandoned 19th-century Victorian estate haunted by occult entities. Use vintage photographic equipment to reveal unseen horrors.',
-      short_description: 'Terrifying psychological horror game with binaural 3D audio and puzzle solving.',
-      price: 14.99,
-      discount_price: null,
-      category_id: 'c8888888-8888-8888-8888-888888888888',
-      platform: 'PC / Windows',
-      version: 'v1.0.4',
-      developer: 'Nightmare Engine',
-      publisher: 'DynaPublishing',
-      release_date: '2025-10-31',
-      cover_image: 'https://images.unsplash.com/photo-1509281373149-e957c6296406?w=800&auto=format&fit=crop&q=80',
-      screenshots: [
-        'https://images.unsplash.com/photo-1509281373149-e957c6296406?w=1200&auto=format&fit=crop&q=80'
-      ],
-      file_path: 'games/blackwood_manor_v1.0.4.zip',
-      file_name: 'blackwood_manor.zip',
-      file_size: '6.1 GB',
-      is_published: true,
-      system_requirements: {
-        os: 'Windows 10 64-bit',
-        processor: 'Intel Core i5-6600K',
-        memory: '8 GB RAM',
-        graphics: 'NVIDIA GTX 1070',
-        storage: '10 GB'
-      },
-      created_at: new Date('2025-10-31').toISOString(),
-    },
-    {
-      id: '66666666-6666-6666-6666-666666666666',
-      title: 'Stellar Command: Galaxy Fleet',
-      slug: 'stellar-command-galaxy-fleet',
-      description: 'Grand 4X space strategy. Command armada fleets, establish galactic colonies, research antimatter technologies, and forge diplomatic treaties or total orbital bombardments across 500 star systems.',
-      short_description: 'Grand 4X space strategy simulator with massive fleet warfare and planetary management.',
-      price: 29.99,
-      discount_price: 19.99,
-      category_id: 'c7777777-7777-7777-7777-777777777777',
-      platform: 'PC / Windows',
-      version: 'v1.3.0',
-      developer: 'Nova Dynamics',
-      publisher: 'Astro Interactive',
-      release_date: '2025-12-05',
-      cover_image: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80',
-      screenshots: [
-        'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200&auto=format&fit=crop&q=80'
-      ],
-      file_path: 'games/stellar_command_v1.3.zip',
-      file_name: 'stellar_command_fleet.zip',
-      file_size: '5.3 GB',
-      is_published: true,
-      system_requirements: {
-        os: 'Windows 10/11 64-bit',
-        processor: 'Intel Core i7 / AMD Ryzen 7',
-        memory: '16 GB RAM',
-        graphics: 'GTX 1660 / RX 590',
-        storage: '8 GB'
-      },
-      created_at: new Date('2025-12-05').toISOString(),
-    }
-  ],
+  products: [],
   profiles: [],
   carts: {},
   orders: [],
@@ -504,7 +313,7 @@ export const db = {
   async seedDemoAccounts() {
     if (!isConfigured || !supabase) return;
     try {
-      // 1. Auto-seed categories
+      // 1. Auto-seed categories if needed
       const categoriesToSeed = devStore.categories.map(c => ({
         id: c.id,
         name: c.name,
@@ -514,30 +323,8 @@ export const db = {
       }));
       await supabase.from('categories').upsert(categoriesToSeed, { onConflict: 'id' });
 
-      // 2. Auto-seed game products
-      const productsToSeed = devStore.products.map(p => ({
-        id: p.id,
-        title: p.title,
-        slug: p.slug,
-        description: p.description,
-        short_description: p.short_description,
-        price: p.price,
-        discount_price: p.discount_price,
-        category_id: p.category_id,
-        platform: p.platform,
-        version: p.version,
-        developer: p.developer,
-        publisher: p.publisher,
-        release_date: p.release_date,
-        cover_image: p.cover_image,
-        screenshots: p.screenshots || [],
-        file_path: p.file_path,
-        file_name: p.file_name,
-        file_size: p.file_size,
-        system_requirements: p.system_requirements,
-        is_published: true,
-      }));
-      await supabase.from('products').upsert(productsToSeed, { onConflict: 'id' });
+      // DO NOT auto-seed products. Supabase is the single source of truth.
+      // An empty products table must remain empty.
 
       // 3. Elevate configured admin accounts if present
       if (ENV.ADMIN_EMAILS && ENV.ADMIN_EMAILS.length > 0) {
@@ -695,9 +482,10 @@ export const db = {
   // Products
   async getProducts({ category, search, platform, minPrice, maxPrice, isPublished = true, sort = 'newest' } = {}) {
     if (isConfigured && supabase) {
-      let query = supabase.from('products').select('*, category:categories(id, name, slug)');
+      const selectClause = category ? '*, category:categories!inner(id, name, slug)' : '*, category:categories(id, name, slug)';
+      let query = supabase.from('products').select(selectClause);
       if (isPublished !== undefined) query = query.eq('is_published', isPublished);
-      if (category) query = query.eq('categories.slug', category);
+      if (category) query = query.eq('category.slug', category);
       if (platform) query = query.ilike('platform', `%${platform}%`);
       if (search) query = query.or(`title.ilike.%${search}%,developer.ilike.%${search}%,publisher.ilike.%${search}%`);
       if (minPrice !== undefined) query = query.gte('price', minPrice);
@@ -709,108 +497,247 @@ export const db = {
 
       try {
         const { data, error } = await query;
-        if (!error && data && data.length > 0) return data;
+        if (error) {
+          console.error('Supabase getProducts error:', error.message);
+          throw error;
+        }
+        console.log("Products returned from Supabase:", data ? data.length : 0);
+        return data || [];
       } catch (e) {
-        console.warn('Supabase getProducts notice:', e.message);
+        console.error('Supabase getProducts failed:', e.message);
+        throw e;
       }
     }
 
-    // In-memory filter
+    // Dev memory mode only if Supabase is completely unconfigured
     let list = [...devStore.products];
     if (isPublished !== undefined) list = list.filter(p => p.is_published === isPublished);
-    if (category) {
-      const cat = devStore.categories.find(c => c.slug === category);
-      if (cat) list = list.filter(p => p.category_id === cat.id);
-    }
-    if (platform) {
-      list = list.filter(p => p.platform.toLowerCase().includes(platform.toLowerCase()));
-    }
-    if (search) {
-      const q = search.toLowerCase();
-      list = list.filter(p =>
-        p.title.toLowerCase().includes(q) ||
-        (p.developer && p.developer.toLowerCase().includes(q)) ||
-        (p.publisher && p.publisher.toLowerCase().includes(q))
-      );
-    }
-
-    return list.map(p => ({
-      ...p,
-      category: devStore.categories.find(c => c.id === p.category_id) || null
-    }));
+    return list;
   },
 
   async getProductBySlug(slug) {
+    if (!slug) return null;
     if (isConfigured && supabase) {
       try {
         const { data, error } = await supabase.from('products').select('*, category:categories(id, name, slug)').eq('slug', slug).maybeSingle();
-        if (!error && data) return data;
-      } catch (e) {}
+        if (error) throw error;
+        return data || null;
+      } catch (e) {
+        console.error('Supabase getProductBySlug error:', e.message);
+        throw e;
+      }
     }
-    const p = devStore.products.find(prod => prod.slug === slug);
-    if (!p) return null;
-    return {
-      ...p,
-      category: devStore.categories.find(c => c.id === p.category_id) || null
-    };
+    return devStore.products.find(prod => prod.slug === slug) || null;
   },
 
   async getProductById(id) {
+    if (!id) return null;
     if (isConfigured && supabase) {
       try {
         const { data, error } = await supabase.from('products').select('*, category:categories(id, name, slug)').eq('id', id).maybeSingle();
-        if (!error && data) return data;
-      } catch (e) {}
+        if (error) throw error;
+        return data || null;
+      } catch (e) {
+        console.error('Supabase getProductById error:', e.message);
+        throw e;
+      }
     }
-    const p = devStore.products.find(prod => prod.id === id);
-    if (!p) return null;
-    return {
-      ...p,
-      category: devStore.categories.find(c => c.id === p.category_id) || null
-    };
+    return devStore.products.find(prod => prod.id === id) || null;
   },
 
-  async deleteProduct(id) {
-    if (!id) return false;
-    let deleted = false;
-    if (isConfigured && supabase) {
-      try {
-        // Clear references from carts, downloads, and product_images first
-        await supabase.from('cart_items').delete().eq('product_id', id);
-        await supabase.from('downloads').delete().eq('product_id', id);
-        await supabase.from('product_images').delete().eq('product_id', id);
+  async createProduct(productData) {
+    if (!productData || !productData.title) {
+      throw new Error('Product title is required');
+    }
 
-        // Attempt hard delete
-        const { error } = await supabase.from('products').delete().eq('id', id);
-        if (!error) {
-          deleted = true;
-        } else if (error.code === '23503' || error.message?.includes('foreign key')) {
-          // If referenced by existing orders, soft delete by unpublishing
-          await supabase.from('products').update({ is_published: false, updated_at: new Date().toISOString() }).eq('id', id);
-          deleted = true;
-        } else {
-          console.warn('Supabase deleteProduct notice:', error.message);
-        }
+    const isUuid = (str) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str.trim());
+
+    const id = productData.id && isUuid(productData.id) ? productData.id : crypto.randomUUID();
+
+    let baseSlug = (productData.title || '')
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
+
+    if (!baseSlug || baseSlug.length < 2) {
+      baseSlug = 'game-' + Date.now().toString(36);
+    }
+
+    const uniqueSlug = productData.slug || `${baseSlug}-${crypto.randomBytes(2).toString('hex')}`;
+
+    let categoryId = (productData.category_id && isUuid(productData.category_id)) ? productData.category_id.trim() : null;
+
+    if (isConfigured && supabase && categoryId) {
+      try {
+        const { data: catExists } = await supabase.from('categories').select('id').eq('id', categoryId).maybeSingle();
+        if (!catExists) categoryId = null;
       } catch (e) {
-        console.warn('Supabase deleteProduct catch error:', e.message);
+        categoryId = null;
       }
     }
 
-    // Always remove from memory store
-    const initialLen = devStore.products.length;
-    devStore.products = devStore.products.filter(p => p.id !== id);
-    if (devStore.cart_items) {
-      devStore.cart_items = devStore.cart_items.filter(item => item.product_id !== id);
+    const payload = {
+      id,
+      title: String(productData.title).trim(),
+      slug: uniqueSlug,
+      description: productData.description || productData.short_description || productData.title || '',
+      short_description: productData.short_description || '',
+      price: (productData.price === '' || productData.price === null || productData.price === undefined) ? 0 : Number(productData.price) || 0,
+      discount_price: (productData.discount_price !== '' && productData.discount_price !== null && productData.discount_price !== undefined) ? Number(productData.discount_price) : null,
+      category_id: categoryId,
+      platform: productData.platform || 'PC / Windows',
+      version: productData.version || 'v1.0.0',
+      developer: productData.developer || '',
+      publisher: productData.publisher || 'DynaPublishing',
+      release_date: productData.release_date || new Date().toISOString().split('T')[0],
+      cover_image: productData.cover_image || 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800',
+      screenshots: Array.isArray(productData.screenshots) ? productData.screenshots : [],
+      file_path: productData.file_path || '',
+      file_name: productData.file_name || `${baseSlug}.zip`,
+      file_size: productData.file_size || '1.0 GB',
+      system_requirements: (typeof productData.system_requirements === 'object' && productData.system_requirements !== null) ? productData.system_requirements : {},
+      is_published: productData.is_published !== undefined ? Boolean(productData.is_published) : true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    if (isConfigured && supabase) {
+      const { data, error } = await supabase.from('products').insert(payload).select('*, category:categories(id, name, slug)').single();
+      if (error) {
+        console.error('Supabase createProduct database error:', error.message);
+        throw error;
+      }
+      return data;
     }
+
+    devStore.products.unshift(payload);
+    return payload;
+  },
+
+  async updateProduct(id, updates) {
+    if (!id) throw new Error('Product ID is required');
+
+    const isUuid = (str) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str.trim());
+
+    const cleanUpdates = {};
+    const allowed = [
+      'title', 'slug', 'description', 'short_description',
+      'price', 'discount_price', 'category_id', 'platform',
+      'version', 'developer', 'publisher', 'release_date',
+      'cover_image', 'screenshots', 'file_path', 'file_name',
+      'file_size', 'system_requirements', 'is_published'
+    ];
+
+    for (const k of allowed) {
+      if (updates[k] !== undefined) {
+        cleanUpdates[k] = updates[k];
+      }
+    }
+
+    if (cleanUpdates.price !== undefined) {
+      cleanUpdates.price = (cleanUpdates.price === '' || cleanUpdates.price === null) ? 0 : Number(cleanUpdates.price) || 0;
+    }
+    if (cleanUpdates.discount_price !== undefined) {
+      cleanUpdates.discount_price = (cleanUpdates.discount_price === '' || cleanUpdates.discount_price === null) ? null : Number(cleanUpdates.discount_price);
+    }
+    if (cleanUpdates.category_id !== undefined) {
+      cleanUpdates.category_id = (cleanUpdates.category_id && isUuid(cleanUpdates.category_id)) ? cleanUpdates.category_id.trim() : null;
+    }
+    if (cleanUpdates.is_published !== undefined) {
+      cleanUpdates.is_published = Boolean(cleanUpdates.is_published);
+    }
+    if (cleanUpdates.screenshots !== undefined && !Array.isArray(cleanUpdates.screenshots)) {
+      cleanUpdates.screenshots = [];
+    }
+
+    cleanUpdates.updated_at = new Date().toISOString();
+
+    if (isConfigured && supabase) {
+      if (cleanUpdates.category_id) {
+        try {
+          const { data: catExists } = await supabase.from('categories').select('id').eq('id', cleanUpdates.category_id).maybeSingle();
+          if (!catExists) cleanUpdates.category_id = null;
+        } catch (e) {
+          cleanUpdates.category_id = null;
+        }
+      }
+      const { data, error } = await supabase.from('products').update(cleanUpdates).eq('id', id).select('*, category:categories(id, name, slug)').maybeSingle();
+      if (error) {
+        console.error('Supabase updateProduct database error:', error.message);
+        throw error;
+      }
+      return data;
+    }
+
+    const idx = devStore.products.findIndex(p => p.id === id);
+    if (idx !== -1) {
+      devStore.products[idx] = { ...devStore.products[idx], ...cleanUpdates };
+      return devStore.products[idx];
+    }
+    return null;
+  },
+
+  async deleteProduct(id) {
+    if (!id) throw new Error('Product ID is required');
+    console.log("DELETE product ID:", id);
+
+    let deletedRows = [];
+    if (isConfigured && supabase) {
+      // 1. Verify product exists in Supabase
+      const { data: existing, error: findError } = await supabase
+        .from('products')
+        .select('id, title')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (findError) {
+        console.error('Supabase find product before delete error:', findError.message);
+        throw findError;
+      }
+
+      if (!existing) {
+        console.warn('Product not found in Supabase for deletion:', id);
+        return { success: false, message: 'Product not found in database', deletedId: id };
+      }
+
+      // 2. Cascade cleanup related records to prevent foreign key errors
+      try { await supabase.from('cart_items').delete().eq('product_id', id); } catch (e) {}
+      try { await supabase.from('downloads').delete().eq('product_id', id); } catch (e) {}
+      try { await supabase.from('product_images').delete().eq('product_id', id); } catch (e) {}
+      try { await supabase.from('order_items').delete().eq('product_id', id); } catch (e) {}
+
+      // 3. Permanent hard delete from Supabase products table
+      const { data, error } = await supabase
+        .from('products')
+        .delete()
+        .eq('id', id)
+        .select();
+
+      if (error) {
+        console.error('Supabase delete product failed:', error.message);
+        throw error;
+      }
+
+      deletedRows = data || [];
+      console.log("Supabase deleted rows:", deletedRows);
+    }
+
+    // Clean from devStore memory
+    devStore.products = devStore.products.filter(p => p.id !== id);
     if (devStore.carts) {
       Object.keys(devStore.carts).forEach(userId => {
         if (Array.isArray(devStore.carts[userId])) {
-          devStore.carts[userId] = devStore.carts[userId].filter(item => (item.id || item.product_id) !== id);
+          devStore.carts[userId] = devStore.carts[userId].filter(item => (item.id || item.productId) !== id);
         }
       });
     }
 
-    return deleted || devStore.products.length < initialLen;
+    return {
+      success: true,
+      deletedRows,
+      deletedId: id,
+    };
   },
 
   // Categories
@@ -1000,7 +927,15 @@ export const db = {
     };
 
     if (isConfigured && supabase) {
-      await supabase.from('wallet_transactions').insert(tx);
+      try {
+        const { error } = await supabase.from('wallet_transactions').insert(tx);
+        if (error) {
+          console.warn('Supabase wallet_transactions notice:', error.message);
+          devStore.wallet_transactions.push(tx);
+        }
+      } catch (e) {
+        devStore.wallet_transactions.push(tx);
+      }
     } else {
       devStore.wallet_transactions.push(tx);
     }
@@ -1021,7 +956,14 @@ export const db = {
     };
 
     if (isConfigured && supabase) {
-      await supabase.from('audit_logs').insert(log);
+      try {
+        const { error } = await supabase.from('audit_logs').insert(log);
+        if (error) {
+          devStore.audit_logs.push(log);
+        }
+      } catch (e) {
+        devStore.audit_logs.push(log);
+      }
     } else {
       devStore.audit_logs.push(log);
     }
@@ -1041,7 +983,14 @@ export const db = {
     };
 
     if (isConfigured && supabase) {
-      await supabase.from('notifications').insert(notif);
+      try {
+        const { error } = await supabase.from('notifications').insert(notif);
+        if (error) {
+          devStore.notifications.push(notif);
+        }
+      } catch (e) {
+        devStore.notifications.push(notif);
+      }
     } else {
       devStore.notifications.push(notif);
     }

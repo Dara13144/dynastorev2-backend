@@ -21,11 +21,11 @@ export const getDashboardMetrics = async (req, res, next) => {
         supabase.from('payments').select('*'),
         supabase.from('downloads').select('*'),
       ]);
-      users = (uRes.data && uRes.data.length > 0) ? uRes.data : db.store.profiles;
-      products = (pRes.data && pRes.data.length > 0) ? pRes.data : db.store.products;
-      orders = (oRes.data && oRes.data.length > 0) ? oRes.data : db.store.orders;
-      payments = (payRes.data && payRes.data.length > 0) ? payRes.data : db.store.payments;
-      downloads = (dRes.data && dRes.data.length > 0) ? dRes.data : db.store.downloads;
+      users = uRes?.data || db.store.profiles || [];
+      products = pRes?.data || db.store.products || [];
+      orders = oRes?.data || db.store.orders || [];
+      payments = payRes?.data || db.store.payments || [];
+      downloads = dRes?.data || db.store.downloads || [];
     } else {
       users = db.store.profiles;
       products = db.store.products;
@@ -70,8 +70,13 @@ export const getDashboardMetrics = async (req, res, next) => {
 // Products Management
 export const getAdminProducts = async (req, res, next) => {
   try {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+
     const products = await db.getProducts({ isPublished: undefined });
-    res.json({ success: true, count: products.length, products });
+    console.log('GET /api/admin/products count:', products?.length || 0);
+    res.json({ success: true, count: products.length, products: products || [] });
   } catch (error) {
     next(error);
   }
@@ -79,209 +84,58 @@ export const getAdminProducts = async (req, res, next) => {
 
 export const createProduct = async (req, res, next) => {
   try {
-    const {
-      title,
-      description,
-      short_description,
-      price,
-      discount_price,
-      category_id,
-      platform,
-      version,
-      developer,
-      publisher,
-      cover_image,
-      screenshots,
-      file_path,
-      file_name,
-      file_size,
-      system_requirements,
-      is_published = true,
-    } = req.body;
+    const { title, price } = req.body;
 
     if (!title || price === undefined) {
       return res.status(400).json({ success: false, message: 'Title and price are required' });
     }
 
-    const slug = title
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/(^-|-$)/g, '');
+    const createdProduct = await db.createProduct(req.body);
 
-    const newProduct = {
-      id: crypto.randomUUID(),
-      title,
-      slug: `${slug}-${crypto.randomBytes(2).toString('hex')}`,
-      description: description || '',
-      short_description: short_description || '',
-      price: (price === '' || price === null || price === undefined) ? 0 : Number(price) || 0,
-      discount_price: (discount_price !== '' && discount_price !== null && discount_price !== undefined) ? Number(discount_price) : null,
-      category_id: category_id ? String(category_id) : null,
-      platform: platform || 'PC',
-      version: version || '1.0.0',
-      developer: developer || '',
-      publisher: publisher || '',
-      release_date: new Date().toISOString().split('T')[0],
-      cover_image: cover_image || 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800',
-      screenshots: screenshots || [],
-      file_path: file_path || '',
-      file_name: file_name || `${slug}.zip`,
-      file_size: file_size || '1.0 GB',
-      system_requirements: system_requirements || {},
-      is_published: Boolean(is_published),
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-
-    if (db.isConfigured()) {
-      try {
-        const { supabase } = await import('../config/supabase.js');
-        let cleanCategoryId = newProduct.category_id;
-        if (cleanCategoryId) {
-          const { data: catExists } = await supabase.from('categories').select('id').eq('id', cleanCategoryId).maybeSingle();
-          if (!catExists) cleanCategoryId = null;
-        }
-        const insertPayload = { ...newProduct, category_id: cleanCategoryId };
-        const { data, error } = await supabase.from('products').insert(insertPayload).select().single();
-        if (!error && data) {
-          db.store.products.unshift({ ...newProduct, ...data });
-          await db.createAuditLog({
-            adminId: req.user.id,
-            action: 'CREATE_PRODUCT',
-            targetType: 'PRODUCT',
-            targetId: data.id,
-            metadata: { title },
-          });
-          return res.status(201).json({ success: true, product: data });
-        }
-      } catch (e) {
-        console.warn('Supabase createProduct notice:', e.message);
-      }
-    }
-
-    db.store.products.unshift(newProduct);
     await db.createAuditLog({
       adminId: req.user.id,
       action: 'CREATE_PRODUCT',
       targetType: 'PRODUCT',
-      targetId: newProduct.id,
-      metadata: { title },
-    });
+      targetId: createdProduct.id,
+      metadata: { title: createdProduct.title, price: createdProduct.price },
+    }).catch(() => {});
 
-    res.status(201).json({ success: true, product: newProduct });
+    console.log('Admin added product successfully to Supabase:', createdProduct.id, createdProduct.title);
+    res.status(201).json({ success: true, product: createdProduct });
   } catch (error) {
-    next(error);
+    console.error('Failed to create product in database:', error.message);
+    res.status(400).json({
+      success: false,
+      message: error.message || 'Failed to create product in database',
+    });
   }
 };
 
 export const updateProduct = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const body = req.body || {};
+    const updatedProduct = await db.updateProduct(id, req.body);
 
-    // Sanitize incoming fields to prevent database numeric/UUID errors
-    const updates = {};
-    const allowedFields = [
-      'title',
-      'slug',
-      'description',
-      'short_description',
-      'price',
-      'discount_price',
-      'category_id',
-      'platform',
-      'version',
-      'developer',
-      'publisher',
-      'release_date',
-      'cover_image',
-      'screenshots',
-      'file_path',
-      'file_name',
-      'file_size',
-      'system_requirements',
-      'is_published',
-    ];
-
-    for (const field of allowedFields) {
-      if (body[field] !== undefined) {
-        updates[field] = body[field];
-      }
+    if (!updatedProduct) {
+      return res.status(404).json({ success: false, message: 'Product not found' });
     }
-
-    if (updates.price !== undefined) {
-      updates.price = (updates.price === '' || updates.price === null) ? 0 : Number(updates.price) || 0;
-    }
-
-    if (updates.discount_price !== undefined) {
-      updates.discount_price = (updates.discount_price === '' || updates.discount_price === null)
-        ? null
-        : Number(updates.discount_price);
-    }
-
-    if (updates.category_id !== undefined) {
-      updates.category_id = updates.category_id ? String(updates.category_id) : null;
-    }
-
-    if (updates.is_published !== undefined) {
-      updates.is_published = Boolean(updates.is_published);
-    }
-
-    if (updates.screenshots !== undefined && !Array.isArray(updates.screenshots)) {
-      updates.screenshots = [];
-    }
-
-    if (db.isConfigured()) {
-      try {
-        const { supabase } = await import('../config/supabase.js');
-        let updatePayload = { ...updates, updated_at: new Date().toISOString() };
-        if (updatePayload.category_id) {
-          const { data: catExists } = await supabase.from('categories').select('id').eq('id', updatePayload.category_id).maybeSingle();
-          if (!catExists) updatePayload.category_id = null;
-        }
-        const { data, error } = await supabase
-          .from('products')
-          .update(updatePayload)
-          .eq('id', id)
-          .select()
-          .maybeSingle();
-        if (!error && data) {
-          const idx = db.store.products.findIndex(p => p.id === id);
-          if (idx !== -1) db.store.products[idx] = { ...db.store.products[idx], ...data };
-          await db.createAuditLog({
-            adminId: req.user.id,
-            action: 'UPDATE_PRODUCT',
-            targetType: 'PRODUCT',
-            targetId: id,
-            metadata: { title: data.title, price: data.price },
-          });
-          return res.json({ success: true, product: data });
-        }
-      } catch (e) {
-        console.warn('Supabase updateProduct notice:', e.message);
-      }
-    }
-
-    const idx = db.store.products.findIndex(p => p.id === id);
-    if (idx === -1) return res.status(404).json({ success: false, message: 'Product not found' });
-
-    db.store.products[idx] = {
-      ...db.store.products[idx],
-      ...updates,
-      updated_at: new Date().toISOString(),
-    };
 
     await db.createAuditLog({
       adminId: req.user.id,
       action: 'UPDATE_PRODUCT',
       targetType: 'PRODUCT',
       targetId: id,
-      metadata: { title: db.store.products[idx].title, price: db.store.products[idx].price },
-    });
+      metadata: { title: updatedProduct.title, price: updatedProduct.price },
+    }).catch(() => {});
 
-    res.json({ success: true, product: db.store.products[idx] });
+    console.log('Admin updated product successfully in Supabase:', id, updatedProduct.title);
+    res.json({ success: true, product: updatedProduct });
   } catch (error) {
-    next(error);
+    console.error('Failed to update product in database:', error.message);
+    res.status(400).json({
+      success: false,
+      message: error.message || 'Failed to update product in database',
+    });
   }
 };
 
@@ -293,8 +147,17 @@ export const deleteProduct = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Product ID is required' });
     }
 
-    // Call resilient deleteProduct from db adapter
-    await db.deleteProduct(id);
+    console.log('DELETE product ID:', id);
+    const result = await db.deleteProduct(id);
+
+    if (!result.success || !result.deletedRows || result.deletedRows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found',
+      });
+    }
+
+    console.log('Supabase deleted row count:', result.deletedRows.length);
 
     try {
       await db.createAuditLog({
@@ -305,9 +168,17 @@ export const deleteProduct = async (req, res, next) => {
       });
     } catch (e) {}
 
-    res.json({ success: true, message: 'Product deleted successfully from store' });
+    res.json({
+      success: true,
+      message: 'Product deleted successfully',
+      deletedId: id,
+    });
   } catch (error) {
-    next(error);
+    console.error('Delete product error in admin controller:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to delete product',
+    });
   }
 };
 
@@ -470,9 +341,17 @@ export const getAdminLogs = async (req, res, next) => {
   try {
     let logs = [];
     if (db.isConfigured()) {
-      const { supabase } = await import('../config/supabase.js');
-      const { data } = await supabase.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(100);
-      logs = data || [];
+      try {
+        const { supabase } = await import('../config/supabase.js');
+        const { data, error } = await supabase.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(100);
+        if (!error && data && data.length > 0) {
+          logs = data;
+        } else {
+          logs = [...db.store.audit_logs].reverse().slice(0, 100);
+        }
+      } catch (e) {
+        logs = [...db.store.audit_logs].reverse().slice(0, 100);
+      }
     } else {
       logs = [...db.store.audit_logs].reverse().slice(0, 100);
     }

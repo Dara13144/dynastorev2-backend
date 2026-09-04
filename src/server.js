@@ -151,7 +151,13 @@ import { autoConfirmTelegramSession } from './controllers/auth.controller.js';
 
 const server = app.listen(port, host, () => {
   console.log(`🚀 DynaStore API Server listening on http://${host}:${port}`);
-  db.seedDemoAccounts().catch(() => {});
+  console.log(`⚡ Environment: ${ENV.NODE_ENV}`);
+  try {
+    const supabaseHost = new URL(ENV.SUPABASE_URL).host;
+    console.log(`⚡ Supabase Host: ${supabaseHost}`);
+  } catch (e) {
+    console.log(`⚡ Supabase URL configured`);
+  }
   // Start Telegram bot background polling for instant QR auto-login
   try {
     telegramService.startPolling(autoConfirmTelegramSession);
